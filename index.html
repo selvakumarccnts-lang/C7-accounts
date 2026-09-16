@@ -312,11 +312,40 @@ textarea {
 </head>
 <body>
   <div id="loginPage" class="login">
-  <div class="login-box">
+
+  <!-- ROLE SELECT -->
+  <div id="roleSelectBox" class="login-box">
 
     <div class="logo">C7 Accounts</div>
 
     <div class="subtitle">
+      Finance Notes
+    </div>
+
+    <button
+      class="primary"
+      style="margin-top:6px"
+      onclick="showLoginForm('Employee')"
+    >
+      Employee Login
+    </button>
+
+    <button
+      class="primary"
+      style="margin-top:12px"
+      onclick="showLoginForm('Owner')"
+    >
+      Owner Login
+    </button>
+
+  </div>
+
+  <!-- USERNAME / PASSWORD LOGIN -->
+  <div id="login-box" class="login-box hidden">
+
+    <div class="logo">C7 Accounts</div>
+
+    <div id="loginSubtitle" class="subtitle">
       Finance Notes
     </div>
 
@@ -337,6 +366,14 @@ textarea {
 
     <button class="primary" id="loginBtn" onclick="login()">
       Login
+    </button>
+
+    <button
+      class="secondary"
+      style="width:100%;margin-top:12px"
+      onclick="showRoleSelect()"
+    >
+      ← Back
     </button>
 
     <p
@@ -927,6 +964,61 @@ function money(n) {
 }
 
 
+// Shows the Employee/Owner username-password form.
+// This only controls which screen is visible before login;
+// the actual role used after login still comes from the
+// backend's response, so existing auth logic is unchanged.
+function showLoginForm(role) {
+
+  document
+    .getElementById("roleSelectBox")
+    .classList.add("hidden");
+
+  document
+    .getElementById("login-box")
+    .classList.remove("hidden");
+
+  document
+    .getElementById("loginSubtitle")
+    .textContent =
+    role + " Login";
+
+  document
+    .getElementById("username")
+    .value = "";
+
+  document
+    .getElementById("password")
+    .value = "";
+
+  document
+    .getElementById("loginMsg")
+    .textContent = "";
+
+  document
+    .getElementById("username")
+    .focus();
+
+}
+
+
+function showRoleSelect() {
+
+  document
+    .getElementById("login-box")
+    .classList.add("hidden");
+
+  document
+    .getElementById("roleSelectBox")
+    .classList.remove("hidden");
+
+  document
+    .getElementById("loginMsg")
+    .textContent = "";
+
+}
+
+
 function login() {
 
   const username =
@@ -1055,6 +1147,8 @@ function login() {
   document
     .getElementById("loginMsg")
     .textContent = "";
+
+  showRoleSelect();
 
 }
 
