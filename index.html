@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#111827">
+<title>C7 Accounts</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f3f4f6;
+  color: #111827;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 0;
+}
+
+.container {
+  max-width: 900px;
+  margin: auto;
+  padding: 18px;
+}
+
+.login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-box {
+  width: 100%;
+  max-width: 420px;
+  background: white;
+  border-radius: 18px;
+  padding: 28px;
+  box-shadow: 0 8px 30px #0001;
+}
+
+.logo {
+  text-align: center;
+  font-size: 30px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.subtitle {
+  text-align: center;
+  color: #6b7280;
+  margin-bottom: 24px;
+}
+
+label {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 14px 0 7px;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 13px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: white;
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.primary {
+  width: 100%;
+  background: #111827;
+  color: white;
+  padding: 13px;
+  border-radius: 10px;
+  font-weight: 700;
+  margin-top: 18px;
+}
+
+.secondary {
+  background: #e5e7eb;
+  color: #111827;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.danger {
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.header h2 {
+  margin: 0;
+}
+
+.user {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.balance {
+  background: #111827;
+  color: white;
+  border-radius: 18px;
+  padding: 22px;
+  margin-bottom: 18px;
+}
+
+.balance small {
+  opacity: .75;
+}
+
+.balance .amount {
+  font-size: 34px;
+  font-weight: 800;
+  margin-top: 7px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.stat {
+  background: white;
+  border-radius: 14px;
+  padding: 17px;
+  box-shadow: 0 3px 12px #0000000a;
+}
+
+.stat small {
+  color: #6b7280;
+}
+
+.stat strong {
+  display: block;
+  font-size: 21px;
+  margin-top: 5px;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.tile {
+  background: white;
+  padding: 20px;
+  border-radius: 15px;
+  text-align: left;
+  box-shadow: 0 3px 12px #0000000a;
+  font-weight: 700;
+}
+
+.tile span {
+  display: block;
+  font-size: 25px;
+  margin-bottom: 9px;
+}
+
+.section {
+  background: white;
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 3px 12px #0000000a;
+}
+
+.section h3 {
+  margin: 0 0 14px;
+}
+
+.card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 17px;
+  margin-bottom: 13px;
+  box-shadow: 0 3px 12px #00000008;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.card-head strong {
+  font-size: 16px;
+}
+
+.muted {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.money {
+  font-weight: 800;
+}
+
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 10px;
+  margin-top: 8px;
+  border-top: 1px solid #e5e7eb;
+  font-weight: 800;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.item-input {
+  display: grid;
+  grid-template-columns: 1fr 110px 40px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.remove {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 9px;
+  font-weight: 800;
+}
+
+.back {
+  margin-bottom: 15px;
+}
+
+.empty {
+  text-align: center;
+  color: #6b7280;
+  padding: 25px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+@media(max-width:600px) {
+  .container {
+    padding: 13px;
+  }
+
+  .tiles {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .item-input {
+    grid-template-columns: 1fr 90px 38px;
+  }
+
+  .balance .amount {
+    font-size: 30px;
+  }
+}
+</style>
+</head>
+<body>
+  <div id="loginPage" class="login">
+  <div class="login-box">
+
+    <div class="logo">C7 Accounts</div>
+
+    <div class="subtitle">
+      Finance Notes
+    </div>
+
+    <label>Username</label>
+    <input
+      id="username"
+      autocomplete="username"
+      placeholder="Enter username"
+    >
+
+    <label>Password</label>
+    <input
+      id="password"
+      type="password"
+      autocomplete="current-password"
+      placeholder="Enter password"
+    >
+
+    <button class="primary" onclick="login()">
+      Login
+    </button>
+
+    <p
+      id="loginMsg"
+      class="muted"
+      style="text-align:center;margin-top:14px"
+    ></p>
+
+  </div>
+</div>
+<div id="app" class="hidden">
+
+  <div class="container">
+
+    <div class="header">
+
+      <div>
+        <h2>C7 Accounts</h2>
+        <div id="welcome" class="user"></div>
+      </div>
+
+      <button class="danger" onclick="logout()">
+        Logout
+      </button>
+
+    </div>
+
+
+    <!-- OWNER PAGE -->
+
+    <div id="ownerPage" class="hidden">
+
+      <div class="balance">
+
+        <small>
+          Selvakumar - Current Balance
+        </small>
+
+        <div id="ownerBalance" class="amount">
+          ₹910
+        </div>
+
+      </div>
+
+
+      <div class="tiles">
+
+        <button
+          class="tile"
+          onclick="showOwnerSection('cashSection')"
+        >
+          <span>💰</span>
+          Add Cash
+        </button>
+
+
+        <button
+          class="tile"
+          onclick="showOwnerSection('transactionsSection')"
+        >
+          <span>🧾</span>
+          Transactions
+        </button>
+
+
+        <button
+          class="tile"
+          onclick="showOwnerSection('employeeSection')"
+        >
+          <span>👤</span>
+          Employee Details
+        </button>
+
+      </div>
+
+
+      <!-- ADD CASH -->
+
+      <div id="cashSection" class="section hidden">
+
+        <button
+          class="secondary back"
+          onclick="hideOwnerSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Add Cash</h3>
+
+        <label>Employee</label>
+
+        <select id="cashEmployee">
+          <option>Selvakumar</option>
+        </select>
+
+
+        <label>Date</label>
+
+        <input
+          id="cashDate"
+          type="date"
+        >
+
+
+        <label>Amount</label>
+
+        <input
+          id="cashAmount"
+          type="number"
+          min="0"
+          placeholder="Enter amount"
+        >
+
+
+        <label>Note</label>
+
+        <textarea
+          id="cashNote"
+          placeholder="Example: Initial Cash"
+        ></textarea>
+
+
+        <button
+          class="primary"
+          onclick="addCash()"
+        >
+          Add Cash
+        </button>
+
+      </div>
+
+
+      <!-- TRANSACTIONS -->
+
+      <div
+        id="transactionsSection"
+        class="section hidden"
+      >
+
+        <button
+          class="secondary back"
+          onclick="hideOwnerSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Transactions</h3>
+
+        <div id="ownerTransactions"></div>
+
+      </div>
+
+
+      <!-- EMPLOYEE DETAILS -->
+
+      <div
+        id="employeeSection"
+        class="section hidden"
+      >
+
+        <button
+          class="secondary back"
+          onclick="hideOwnerSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Employee Details</h3>
+
+        <div class="card">
+
+          <strong>Selvakumar</strong>
+
+          <p class="muted">
+            Username: selva
+          </p>
+
+          <p>
+            Current Balance:
+            <span class="money">
+              ₹910
+            </span>
+          </p>
+
+        </div>
+
+      </div>
+
+    </div>
+    <!-- EMPLOYEE PAGE -->
+
+    <div id="employeePage" class="hidden">
+
+      <div class="balance">
+
+        <small>
+          Current Balance
+        </small>
+
+        <div id="employeeBalance" class="amount">
+          ₹910
+        </div>
+
+      </div>
+
+
+      <div class="stats">
+
+        <div class="stat">
+
+          <small>
+            Total Cash Received
+          </small>
+
+          <strong id="cashReceived">
+            ₹2,000
+          </strong>
+
+        </div>
+
+
+        <div class="stat">
+
+          <small>
+            Total Expenses
+          </small>
+
+          <strong id="totalExpenses">
+            ₹1,090
+          </strong>
+
+        </div>
+
+      </div>
+
+
+      <div class="tiles">
+
+        <button
+          class="tile"
+          onclick="showEmployeeSection('expenseSection')"
+        >
+          <span>➕</span>
+          Add Expense
+        </button>
+
+
+        <button
+          class="tile"
+          onclick="showEmployeeSection('historySection')"
+        >
+          <span>🧾</span>
+          Expense History
+        </button>
+
+
+        <button
+          class="tile"
+          onclick="showEmployeeSection('cashHistorySection')"
+        >
+          <span>💰</span>
+          Cash History
+        </button>
+
+      </div>
+
+
+      <!-- ADD EXPENSE -->
+
+      <div
+        id="expenseSection"
+        class="section hidden"
+      >
+
+        <button
+          class="secondary back"
+          onclick="hideEmployeeSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Add Expense</h3>
+
+
+        <div class="form-row">
+
+          <div>
+
+            <label>Date</label>
+
+            <input
+              id="expenseDate"
+              type="date"
+            >
+
+          </div>
+
+
+          <div>
+
+            <label>Employee</label>
+
+            <input
+              value="Selvakumar"
+              disabled
+            >
+
+          </div>
+
+        </div>
+
+
+        <label>Items</label>
+
+        <div id="itemsBox"></div>
+
+
+        <button
+          class="secondary"
+          onclick="addItem()"
+        >
+          + Add Item
+        </button>
+
+
+        <div class="total-row">
+
+          <span>Total</span>
+
+          <span id="liveTotal">
+            ₹0
+          </span>
+
+        </div>
+
+
+        <button
+          class="primary"
+          onclick="saveExpense()"
+        >
+          Save Expense
+        </button>
+
+      </div>
+
+
+      <!-- EXPENSE HISTORY -->
+
+      <div
+        id="historySection"
+        class="section hidden"
+      >
+
+        <button
+          class="secondary back"
+          onclick="hideEmployeeSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Expense History</h3>
+
+        <div id="employeeHistory"></div>
+
+      </div>
+
+
+      <!-- CASH HISTORY -->
+
+      <div
+        id="cashHistorySection"
+        class="section hidden"
+      >
+
+        <button
+          class="secondary back"
+          onclick="hideEmployeeSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Cash History</h3>
+
+        <div id="employeeCashHistory"></div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+<script>
+
+const users = {
+
+  varsha: {
+    name: "Varsha",
+    password: "1234",
+    role: "Owner"
+  },
+
+  navin: {
+    name: "Navin",
+    password: "1234",
+    role: "Owner"
+  },
+
+  selva: {
+    name: "Selvakumar",
+    password: "1234",
+    role: "Employee"
+  }
+
+};
+
+
+let currentUser = null;
+
+
+let cashHistory = [
+
+  {
+    date: "01/09/2026",
+    employee: "Selvakumar",
+    amount: 2000,
+    addedBy: "Varsha",
+    note: "Initial Cash"
+  }
+
+];
+
+
+let expenses = [
+
+  {
+    date: "01/09/2026",
+
+    employee: "Selvakumar",
+
+    items: [
+
+      {
+        item: "Mutton",
+        rate: 1000
+      },
+
+      {
+        item: "Curd",
+        rate: 90
+      }
+
+    ],
+
+    addedBy: "Selvakumar"
+
+  }
+
+];
+
+
+document.addEventListener("DOMContentLoaded", () => {
+
+  const d = new Date();
+
+  document.getElementById("cashDate").value =
+    toInputDate(d);
+
+  document.getElementById("expenseDate").value =
+    toInputDate(d);
+
+  addItem();
+
+  renderAll();
+
+});
+
+
+function toInputDate(d) {
+
+  const y = d.getFullYear();
+
+  const m = String(
+    d.getMonth() + 1
+  ).padStart(2, "0");
+
+  const day = String(
+    d.getDate()
+  ).padStart(2, "0");
+
+  return `${y}-${m}-${day}`;
+
+}
+
+
+function formatDate(value) {
+
+  if (!value) return "";
+
+  const parts = value.split("/");
+
+  if (parts.length === 3) {
+
+    return value;
+
+  }
+
+  const d = new Date(
+    value + "T00:00:00"
+  );
+
+  if (isNaN(d)) return value;
+
+  return String(
+    d.getDate()
+  ).padStart(2, "0")
+  + "/"
+  + String(
+    d.getMonth() + 1
+  ).padStart(2, "0")
+  + "/"
+  + d.getFullYear();
+
+}
+
+
+function getDay(value) {
+
+  const parts = value.split("/");
+
+  let d;
+
+  if (parts.length === 3) {
+
+    d = new Date(
+      parts[2],
+      parts[1] - 1,
+      parts[0]
+    );
+
+  } else {
+
+    d = new Date(
+      value + "T00:00:00"
+    );
+
+  }
+
+  return d.toLocaleDateString(
+    "en-US",
+    {
+      weekday: "long"
+    }
+  );
+
+}
+
+
+function money(n) {
+
+  return "₹" +
+    Number(n || 0)
+      .toLocaleString("en-IN");
+
+}
+
+
+function login() {
+
+  const username =
+    document
+      .getElementById("username")
+      .value
+      .trim()
+      .toLowerCase();
+
+  const password =
+    document
+      .getElementById("password")
+      .value;
+
+
+  if (
+    !users[username] ||
+    users[username].password !== password
+  ) {
+
+    document
+      .getElementById("loginMsg")
+      .textContent =
+      "Invalid username or password";
+
+    return;
+
+  }
+
+
+  currentUser = {
+    ...users[username],
+    username: username
+  };
+
+
+  document
+    .getElementById("loginPage")
+    .classList.add("hidden");
+
+
+  document
+    .getElementById("app")
+    .classList.remove("hidden");
+
+
+  document
+    .getElementById("welcome")
+    .textContent =
+    `Welcome, ${currentUser.name}`;
+
+
+  if (currentUser.role === "Owner") {
+
+    document
+      .getElementById("ownerPage")
+      .classList.remove("hidden");
+
+    document
+      .getElementById("employeePage")
+      .classList.add("hidden");
+
+  } else {
+
+    document
+      .getElementById("employeePage")
+      .classList.remove("hidden");
+
+    document
+      .getElementById("ownerPage")
+      .classList.add("hidden");
+
+  }
+
+
+  renderAll();
+
+}
+  function logout() {
+
+  currentUser = null;
+
+  document
+    .getElementById("app")
+    .classList.add("hidden");
+
+  document
+    .getElementById("loginPage")
+    .classList.remove("hidden");
+
+  document
+    .getElementById("username")
+    .value = "";
+
+  document
+    .getElementById("password")
+    .value = "";
+
+  document
+    .getElementById("loginMsg")
+    .textContent = "";
+
+}
+
+
+function showOwnerSection(id) {
+
+  document
+    .querySelectorAll("#ownerPage .section")
+    .forEach(x =>
+      x.classList.add("hidden")
+    );
+
+  document
+    .getElementById(id)
+    .classList.remove("hidden");
+
+}
+
+
+function hideOwnerSections() {
+
+  document
+    .querySelectorAll("#ownerPage .section")
+    .forEach(x =>
+      x.classList.add("hidden")
+    );
+
+}
+
+
+function showEmployeeSection(id) {
+
+  document
+    .querySelectorAll("#employeePage .section")
+    .forEach(x =>
+      x.classList.add("hidden")
+    );
+
+  document
+    .getElementById(id)
+    .classList.remove("hidden");
+
+}
+
+
+function hideEmployeeSections() {
+
+  document
+    .querySelectorAll("#employeePage .section")
+    .forEach(x =>
+      x.classList.add("hidden")
+    );
+
+}
+  function totalCash() {
+
+  return cashHistory.reduce(
+    (sum, cash) =>
+      sum + Number(cash.amount || 0),
+    0
+  );
+
+}
+
+
+function totalExpenses() {
+
+  return expenses.reduce(
+    (sum, expense) => {
+
+      const expenseTotal =
+        expense.items.reduce(
+          (itemSum, item) =>
+            itemSum + Number(item.rate || 0),
+          0
+        );
+
+      return sum + expenseTotal;
+
+    },
+    0
+  );
+
+}
+
+
+function currentBalance() {
+
+  return totalCash() - totalExpenses();
+
+}
+
+
+function renderAll() {
+
+  const balance =
+    currentBalance();
+
+  document
+    .getElementById("ownerBalance")
+    .textContent =
+    money(balance);
+
+  document
+    .getElementById("employeeBalance")
+    .textContent =
+    money(balance);
+
+  document
+    .getElementById("cashReceived")
+    .textContent =
+    money(totalCash());
+
+  document
+    .getElementById("totalExpenses")
+    .textContent =
+    money(totalExpenses());
+
+}
+  function expenseCard(expense, cashBefore, balance) {
+
+  let rows = "";
+
+  expense.items.forEach((item, index) => {
+
+    rows += `
+      <div class="item-row">
+        <span>
+          ${index + 1}. ${escapeHtml(item.item)}
+        </span>
+
+        <span>
+          ${money(item.rate)}
+        </span>
+      </div>
+    `;
+
+  });
+
+
+  const total = expense.items.reduce(
+    (sum, item) =>
+      sum + Number(item.rate || 0),
+    0
+  );
+
+
+  return `
+    <div class="card">
+
+      <div class="card-head">
+
+        <div>
+          <strong>
+            Date: ${formatDate(expense.date)}
+          </strong>
+
+          <div class="muted">
+            Day: ${getDay(expense.date)}
+          </div>
+        </div>
+
+        <div style="text-align:right">
+          <strong>
+            Cash in Account:
+            ${money(cashBefore)}
+          </strong>
+        </div>
+
+      </div>
+
+
+      ${rows}
+
+
+      <div class="total-row">
+        <span>Total</span>
+        <span>${money(total)}</span>
+      </div>
+
+
+      <div class="total-row">
+        <span>Balance</span>
+        <span>${money(balance)}</span>
+      </div>
+
+    </div>
+  `;
+
+}
+  function renderExpenseHistory() {
+
+  const box =
+    document.getElementById(
+      "employeeHistory"
+    );
+
+
+  if (!expenses.length) {
+
+    box.innerHTML =
+      '<div class="empty">No expense records found</div>';
+
+    return;
+
+  }
+
+
+  let running =
+    totalCash();
+
+
+  box.innerHTML = "";
+
+
+  expenses.forEach(expense => {
+
+    const total =
+      expense.items.reduce(
+        (sum, item) =>
+          sum + Number(item.rate || 0),
+        0
+      );
+
+
+    const cashBefore =
+      running;
+
+
+    const balance =
+      cashBefore - total;
+
+
+    running =
+      balance;
+
+
+    box.innerHTML +=
+      expenseCard(
+        expense,
+        cashBefore,
+        balance
+      );
+
+  });
+
+}
+
+
+function renderCashHistory() {
+
+  const box =
+    document.getElementById(
+      "employeeCashHistory"
+    );
+
+
+  if (!cashHistory.length) {
+
+    box.innerHTML =
+      '<div class="empty">No cash history found</div>';
+
+    return;
+
+  }
+
+
+  box.innerHTML =
+    cashHistory.map(cash => `
+
+      <div class="card">
+
+        <div class="card-head">
+
+          <strong>
+            ${formatDate(cash.date)}
+          </strong>
+
+          <span class="money">
+            ${money(cash.amount)}
+          </span>
+
+        </div>
+
+        <div class="muted">
+          Added by:
+          ${escapeHtml(cash.addedBy)}
+        </div>
+
+        <div>
+          ${escapeHtml(
+            cash.note || "Cash Added"
+          )}
+        </div>
+
+      </div>
+
+    `).join("");
+
+}
+
+
+function renderOwnerTransactions() {
+
+  const box =
+    document.getElementById(
+      "ownerTransactions"
+    );
+
+
+  if (!expenses.length) {
+
+    box.innerHTML =
+      '<div class="empty">No transactions found</div>';
+
+    return;
+
+  }
+
+
+  let running =
+    totalCash();
+
+
+  box.innerHTML = "";
+
+
+  expenses.forEach(expense => {
+
+    const total =
+      expense.items.reduce(
+        (sum, item) =>
+          sum + Number(item.rate || 0),
+        0
+      );
+
+
+    const cashBefore =
+      running;
+
+
+    const balance =
+      cashBefore - total;
+
+
+    running =
+      balance;
+
+
+    box.innerHTML +=
+      expenseCard(
+        expense,
+        cashBefore,
+        balance
+      );
+
+  });
+
+}
+
+
+function renderAll() {
+
+  const balance =
+    currentBalance();
+
+
+  document
+    .getElementById("ownerBalance")
+    .textContent =
+    money(balance);
+
+
+  document
+    .getElementById("employeeBalance")
+    .textContent =
+    money(balance);
+
+
+  document
+    .getElementById("cashReceived")
+    .textContent =
+    money(totalCash());
+
+
+  document
+    .getElementById("totalExpenses")
+    .textContent =
+    money(totalExpenses());
+
+
+  renderExpenseHistory();
+
+  renderCashHistory();
+
+  renderOwnerTransactions();
+
+}
+  function addCash() {
+
+  const date =
+    document.getElementById("cashDate").value;
+
+  const amount =
+    Number(
+      document.getElementById("cashAmount").value
+    );
+
+  const note =
+    document.getElementById("cashNote").value.trim();
+
+
+  if (!date || amount <= 0) {
+
+    alert(
+      "Please enter date and valid amount."
+    );
+
+    return;
+
+  }
+
+
+  cashHistory.push({
+
+    date: formatDateForStorage(date),
+
+    employee: "Selvakumar",
+
+    amount: amount,
+
+    addedBy: currentUser.name,
+
+    note: note || "Cash Added"
+
+  });
+
+
+  document.getElementById(
+    "cashAmount"
+  ).value = "";
+
+
+  document.getElementById(
+    "cashNote"
+  ).value = "";
+
+
+  renderAll();
+
+
+  alert(
+    "Cash added successfully."
+  );
+
+}
+
+
+function formatDateForStorage(inputDate) {
+
+  const parts =
+    inputDate.split("-");
+
+
+  const year = parts[0];
+  const month = parts[1];
+  const day = parts[2];
+
+
+  return `${day}/${month}/${year}`;
+
+}
+  function addItem() {
+
+  const box =
+    document.getElementById("itemsBox");
+
+
+  const row =
+    document.createElement("div");
+
+
+  row.className =
+    "item-input";
+
+
+  row.innerHTML = `
+
+    <input
+      class="item-name"
+      placeholder="Item name"
+    >
+
+    <input
+      class="item-rate"
+      type="number"
+      min="0"
+      placeholder="Rate"
+    >
+
+    <button
+      class="remove"
+      onclick="
+        this.parentElement.remove();
+        updateLiveTotal();
+      "
+    >
+      ×
+    </button>
+
+  `;
+
+
+  box.appendChild(row);
+
+
+  row
+    .querySelector(".item-rate")
+    .addEventListener(
+      "input",
+      updateLiveTotal
+    );
+
+}
+
+
+function updateLiveTotal() {
+
+  let total = 0;
+
+
+  document
+    .querySelectorAll(".item-rate")
+    .forEach(input => {
+
+      total +=
+        Number(input.value || 0);
+
+    });
+
+
+  document
+    .getElementById("liveTotal")
+    .textContent =
+    money(total);
+
+}
+  function saveExpense() {
+
+  const date =
+    document.getElementById(
+      "expenseDate"
+    ).value;
+
+
+  const items = [];
+
+
+  document
+    .querySelectorAll(
+      "#itemsBox .item-input"
+    )
+    .forEach(row => {
+
+      const item =
+        row
+          .querySelector(".item-name")
+          .value
+          .trim();
+
+
+      const rate =
+        Number(
+          row
+            .querySelector(".item-rate")
+            .value || 0
+        );
+
+
+      if (item && rate > 0) {
+
+        items.push({
+          item: item,
+          rate: rate
+        });
+
+      }
+
+    });
+
+
+  if (!date || !items.length) {
+
+    alert(
+      "Please enter date and at least one item."
+    );
+
+    return;
+
+  }
+
+
+  const total =
+    items.reduce(
+      (sum, item) =>
+        sum + item.rate,
+      0
+    );
+
+
+  if (total > currentBalance()) {
+
+    alert(
+      "Expense amount is greater than current balance."
+    );
+
+    return;
+
+  }
+
+
+  expenses.push({
+
+    date:
+      formatDateForStorage(date),
+
+    employee:
+      "Selvakumar",
+
+    items:
+      items,
+
+    addedBy:
+      currentUser.name
+
+  });
+
+
+  document
+    .getElementById("itemsBox")
+    .innerHTML = "";
+
+
+  addItem();
+
+
+  updateLiveTotal();
+
+
+  renderAll();
+
+
+  alert(
+    "Expense saved successfully."
+  );
+
+
+  hideEmployeeSections();
+
+}
+  function escapeHtml(text) {
+
+  return String(text).replace(
+    /[&<>"']/g,
+    function(match) {
+
+      const chars = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      };
+
+      return chars[match];
+
+    }
+  );
+
+}
+
+</script>
+</body>
+</html>
