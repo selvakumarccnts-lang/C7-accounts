@@ -335,7 +335,7 @@ textarea {
       placeholder="Enter password"
     >
 
-    <button class="primary" onclick="login()">
+    <button class="primary" id="loginBtn" onclick="login()">
       Login
     </button>
 
@@ -461,6 +461,7 @@ textarea {
 
         <button
           class="primary"
+          id="addCashBtn"
           onclick="addCash()"
         >
           Add Cash
@@ -675,6 +676,7 @@ textarea {
 
         <button
           class="primary"
+          id="saveExpenseBtn"
           onclick="saveExpense()"
         >
           Save Expense
@@ -730,6 +732,27 @@ textarea {
 
 </div>
 <script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxjjHaFd-L4H1wN9r7zjeUfwDEHTzuXnurQXq8FVhhiMxsVuJ0l-Q4Cde7sesk2j8Oy/exec";
+
+// Sends an action to the Apps Script backend.
+// Uses text/plain as the content type so the browser does not send a
+// CORS preflight (OPTIONS) request, which Apps Script web apps don't handle.
+function apiCall(action, payload) {
+
+  return fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify(
+      Object.assign({ action: action }, payload || {})
+    )
+  })
+  .then(function(res) {
+    return res.json();
+  });
+
+}
 
 const users = {
 
@@ -918,68 +941,95 @@ function login() {
       .getElementById("password")
       .value;
 
+  const loginBtn =
+    document.getElementById("loginBtn");
 
-  if (
-    !users[username] ||
-    users[username].password !== password
-  ) {
+  const loginMsg =
+    document.getElementById("loginMsg");
+
+  loginMsg.textContent = "";
+  loginBtn.disabled = true;
+  loginBtn.textContent = "Logging in...";
+
+  apiCall("login", {
+    username: username,
+    password: password
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+
+      loginMsg.textContent =
+        (result && result.message) ||
+        "Invalid username or password";
+
+      return;
+
+    }
+
+    currentUser = {
+      name: result.name,
+      username: result.username,
+      role: result.role
+    };
+
 
     document
-      .getElementById("loginMsg")
+      .getElementById("loginPage")
+      .classList.add("hidden");
+
+
+    document
+      .getElementById("app")
+      .classList.remove("hidden");
+
+
+    document
+      .getElementById("welcome")
       .textContent =
-      "Invalid username or password";
-
-    return;
-
-  }
+      `Welcome, ${currentUser.name}`;
 
 
-  currentUser = {
-    ...users[username],
-    username: username
-  };
+    if (currentUser.role === "Owner") {
+
+      document
+        .getElementById("ownerPage")
+        .classList.remove("hidden");
+
+      document
+        .getElementById("employeePage")
+        .classList.add("hidden");
+
+    } else {
+
+      document
+        .getElementById("employeePage")
+        .classList.remove("hidden");
+
+      document
+        .getElementById("ownerPage")
+        .classList.add("hidden");
+
+    }
 
 
-  document
-    .getElementById("loginPage")
-    .classList.add("hidden");
+    return loadData();
 
+  })
+  .catch(function(err) {
 
-  document
-    .getElementById("app")
-    .classList.remove("hidden");
+    loginMsg.textContent =
+      "Could not reach server. Please try again.";
 
+    console.error(err);
 
-  document
-    .getElementById("welcome")
-    .textContent =
-    `Welcome, ${currentUser.name}`;
+  })
+  .finally(function() {
 
+    loginBtn.disabled = false;
+    loginBtn.textContent = "Login";
 
-  if (currentUser.role === "Owner") {
-
-    document
-      .getElementById("ownerPage")
-      .classList.remove("hidden");
-
-    document
-      .getElementById("employeePage")
-      .classList.add("hidden");
-
-  } else {
-
-    document
-      .getElementById("employeePage")
-      .classList.remove("hidden");
-
-    document
-      .getElementById("ownerPage")
-      .classList.add("hidden");
-
-  }
-
-
-  renderAll();
+  });
 
 }
   function logout() {
@@ -1122,6 +1172,117 @@ function renderAll() {
     .getElementById("totalExpenses")
     .textContent =
     money(totalExpenses());
+
+  renderExpenseHistory();
+
+  renderCashHistory();
+
+  renderOwnerTransactions();
+
+}
+
+
+// Loads cash history + expense items from the Apps Script backend
+// and rebuilds the local cashHistory / expenses arrays used by the
+// existing render functions, then re-renders the UI.
+function loadData() {
+
+  return Promise.all([
+    apiCall("getCashHistory", { employee: "" }),
+    apiCall("getExpenseItems", { employee: "" })
+  ])
+  .then(function(results) {
+
+    const cashRows = results[0];
+    const itemRows = results[1];
+
+    if (Array.isArray(cashRows)) {
+
+      cashHistory = cashRows.map(function(row) {
+
+        return {
+          date: formatDate(row.date),
+          employee: row.employee,
+          amount: Number(row.amount || 0),
+          addedBy: row.addedBy,
+          note: row.note
+        };
+
+      });
+
+    }
+
+    if (Array.isArray(itemRows)) {
+
+      expenses = groupExpenseItems(itemRows);
+
+    }
+
+    renderAll();
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+
+    alert(
+      "Could not load data from server."
+    );
+
+  });
+
+}
+
+
+// The backend stores expense items as flat rows (one row per item).
+// This regroups them back into the { date, employee, items[], addedBy }
+// shape the existing card/render functions expect, grouping consecutive
+// rows that share the same date, employee and addedBy (i.e. rows saved
+// together in the same "Save Expense" action).
+function groupExpenseItems(rows) {
+
+  const grouped = [];
+
+  rows.forEach(function(row) {
+
+    const date = formatDate(row.date);
+    const employee = row.employee;
+    const addedBy = row.addedBy;
+
+    const last =
+      grouped[grouped.length - 1];
+
+    if (
+      last &&
+      last.date === date &&
+      last.employee === employee &&
+      last.addedBy === addedBy
+    ) {
+
+      last.items.push({
+        item: row.item,
+        rate: row.rate
+      });
+
+    } else {
+
+      grouped.push({
+        date: date,
+        employee: employee,
+        addedBy: addedBy,
+        items: [
+          {
+            item: row.item,
+            rate: row.rate
+          }
+        ]
+      });
+
+    }
+
+  });
+
+  return grouped;
 
 }
   function expenseCard(expense, cashBefore, balance) {
@@ -1364,45 +1525,6 @@ function renderOwnerTransactions() {
   });
 
 }
-
-
-function renderAll() {
-
-  const balance =
-    currentBalance();
-
-
-  document
-    .getElementById("ownerBalance")
-    .textContent =
-    money(balance);
-
-
-  document
-    .getElementById("employeeBalance")
-    .textContent =
-    money(balance);
-
-
-  document
-    .getElementById("cashReceived")
-    .textContent =
-    money(totalCash());
-
-
-  document
-    .getElementById("totalExpenses")
-    .textContent =
-    money(totalExpenses());
-
-
-  renderExpenseHistory();
-
-  renderCashHistory();
-
-  renderOwnerTransactions();
-
-}
   function addCash() {
 
   const date =
@@ -1427,38 +1549,66 @@ function renderAll() {
 
   }
 
+  const addCashBtn =
+    document.getElementById("addCashBtn");
 
-  cashHistory.push({
+  addCashBtn.disabled = true;
+  addCashBtn.textContent = "Adding...";
 
+  apiCall("addCash", {
     date: formatDateForStorage(date),
-
     employee: "Selvakumar",
-
     amount: amount,
-
     addedBy: currentUser.name,
-
     note: note || "Cash Added"
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+
+      alert(
+        (result && result.message) ||
+        "Could not add cash."
+      );
+
+      return;
+
+    }
+
+    document.getElementById(
+      "cashAmount"
+    ).value = "";
+
+
+    document.getElementById(
+      "cashNote"
+    ).value = "";
+
+
+    return loadData().then(function() {
+
+      alert(
+        "Cash added successfully."
+      );
+
+    });
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+
+    alert(
+      "Could not reach server. Please try again."
+    );
+
+  })
+  .finally(function() {
+
+    addCashBtn.disabled = false;
+    addCashBtn.textContent = "Add Cash";
 
   });
-
-
-  document.getElementById(
-    "cashAmount"
-  ).value = "";
-
-
-  document.getElementById(
-    "cashNote"
-  ).value = "";
-
-
-  renderAll();
-
-
-  alert(
-    "Cash added successfully."
-  );
 
 }
 
@@ -1625,44 +1775,68 @@ function updateLiveTotal() {
 
   }
 
+  const saveExpenseBtn =
+    document.getElementById("saveExpenseBtn");
 
-  expenses.push({
+  saveExpenseBtn.disabled = true;
+  saveExpenseBtn.textContent = "Saving...";
 
-    date:
-      formatDateForStorage(date),
+  apiCall("addExpense", {
+    date: formatDateForStorage(date),
+    employee: "Selvakumar",
+    items: items,
+    addedBy: currentUser.name
+  })
+  .then(function(result) {
 
-    employee:
-      "Selvakumar",
+    if (!result || !result.success) {
 
-    items:
-      items,
+      alert(
+        (result && result.message) ||
+        "Could not save expense."
+      );
 
-    addedBy:
-      currentUser.name
+      return;
+
+    }
+
+    document
+      .getElementById("itemsBox")
+      .innerHTML = "";
+
+
+    addItem();
+
+
+    updateLiveTotal();
+
+
+    return loadData().then(function() {
+
+      alert(
+        "Expense saved successfully."
+      );
+
+      hideEmployeeSections();
+
+    });
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+
+    alert(
+      "Could not reach server. Please try again."
+    );
+
+  })
+  .finally(function() {
+
+    saveExpenseBtn.disabled = false;
+    saveExpenseBtn.textContent = "Save Expense";
 
   });
-
-
-  document
-    .getElementById("itemsBox")
-    .innerHTML = "";
-
-
-  addItem();
-
-
-  updateLiveTotal();
-
-
-  renderAll();
-
-
-  alert(
-    "Expense saved successfully."
-  );
-
-
-  hideEmployeeSections();
 
 }
   function escapeHtml(text) {
@@ -1686,9 +1860,6 @@ function updateLiveTotal() {
 
 }
 
-</script>
-  <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxjjHaFd-L4H1wN9r7zjeUfwDEHTzuXnurQXq8FVhhiMxsVuJ0l-Q4Cde7sesk2j8Oy/exec";
 </script>
 </body>
 </html>
