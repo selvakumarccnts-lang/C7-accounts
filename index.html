@@ -349,12 +349,8 @@ textarea {
       Finance Notes
     </div>
 
-    <label>Username</label>
-    <input
-      id="username"
-      autocomplete="username"
-      placeholder="Enter username"
-    >
+       <label>Select User</label>
+    <select id="username"></select>
 
     <label>Password</label>
     <input
@@ -983,9 +979,26 @@ function showLoginForm(role) {
     .textContent =
     role + " Login";
 
-  document
-    .getElementById("username")
-    .value = "";
+  const usernameSelect =
+    document.getElementById("username");
+
+  usernameSelect.innerHTML = "";
+
+  Object.keys(users).forEach(function(key) {
+
+    if (users[key].role === role) {
+
+      const option =
+        document.createElement("option");
+
+      option.value = key;
+      option.textContent = users[key].name;
+
+      usernameSelect.appendChild(option);
+
+    }
+
+  });
 
   document
     .getElementById("password")
@@ -995,9 +1008,7 @@ function showLoginForm(role) {
     .getElementById("loginMsg")
     .textContent = "";
 
-  document
-    .getElementById("username")
-    .focus();
+  usernameSelect.focus();
 
 }
 
