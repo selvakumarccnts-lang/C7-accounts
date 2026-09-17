@@ -770,7 +770,11 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxjjHaFd-L4H1wN9r7zjeUf
 // Sends an action to the Apps Script backend.
 // Uses text/plain as the content type so the browser does not send a
 // CORS preflight (OPTIONS) request, which Apps Script web apps don't handle.
-function apiCall(action, payload) {
+function apiCall(action, payload, retriesLeft) {
+
+  if (retriesLeft === undefined) {
+    retriesLeft = 1;
+  }
 
   return fetch(API_URL, {
     method: "POST",
@@ -783,10 +787,18 @@ function apiCall(action, payload) {
   })
   .then(function(res) {
     return res.json();
+  })
+  .catch(function(err) {
+
+    if (retriesLeft > 0) {
+      return apiCall(action, payload, retriesLeft - 1);
+    }
+
+    throw err;
+
   });
 
 }
-
 const users = {
 
   varsha: {
@@ -1054,11 +1066,19 @@ function login() {
   loginBtn.disabled = true;
   loginBtn.textContent = "Logging in...";
 
-  apiCall("login", {
-    username: username,
-    password: password
-  })
-  .then(function(result) {
+   Promise.all([
+    apiCall("login", {
+      username: username,
+      password: password
+    }),
+    apiCall("getCashHistory", { employee: "" }),
+    apiCall("getExpenseItems", { employee: "" })
+  ])
+  .then(function(results) {
+
+    const result = results[0];
+    const cashRows = results[1];
+    const itemRows = results[2];
 
     if (!result || !result.success) {
 
@@ -1069,7 +1089,6 @@ function login() {
       return;
 
     }
-
     currentUser = {
       name: result.name,
       username: result.username,
@@ -1116,7 +1135,29 @@ function login() {
     }
 
 
-    return loadData();
+      if (Array.isArray(cashRows)) {
+
+      cashHistory = cashRows.map(function(row) {
+
+        return {
+          date: formatDate(row.date),
+          employee: row.employee,
+          amount: Number(row.amount || 0),
+          addedBy: row.addedBy,
+          note: row.note
+        };
+
+      });
+
+    }
+
+    if (Array.isArray(itemRows)) {
+
+      expenses = groupExpenseItems(itemRows);
+
+    }
+
+    renderAll();
 
   })
   .catch(function(err) {
