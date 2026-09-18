@@ -7,12 +7,12 @@
   "theme_color": "#111827",
   "icons": [
     {
-      "src": "C7_Accounts_logo.jpeg",
+      "src": "logo.jpeg",
       "sizes": "192x192",
       "type": "image/jpeg"
     },
     {
-      "src": "C7_Accounts_logo.jpeg",
+      "src": "logo.jpeg",
       "sizes": "512x512",
       "type": "image/jpeg"
     }
