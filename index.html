@@ -443,15 +443,6 @@ textarea {
 
         <button
           class="tile"
-          onclick="showOwnerSection('cashSection')"
-        >
-          <span>💰</span>
-          Add Cash
-        </button>
-
-
-        <button
-          class="tile"
           onclick="showOwnerSection('transactionsSection')"
         >
           <span>🧾</span>
@@ -467,12 +458,21 @@ textarea {
           Employee Details
         </button>
 
+
+        <button
+          class="tile"
+          onclick="showOwnerSection('downloadSection')"
+        >
+          <span>📥</span>
+          Download Report
+        </button>
+
       </div>
 
 
-      <!-- ADD CASH -->
+      <!-- DOWNLOAD REPORT -->
 
-      <div id="cashSection" class="section hidden">
+      <div id="downloadSection" class="section hidden">
 
         <button
           class="secondary back"
@@ -481,48 +481,46 @@ textarea {
           ← Back
         </button>
 
-        <h3>Add Cash</h3>
+        <h3>Download Expense Report</h3>
 
-        <label>Employee</label>
+        <div class="form-row">
 
-        <select id="cashEmployee">
-          <option>Selvakumar</option>
-        </select>
+          <div>
 
+            <label>From Date</label>
 
-        <label>Date</label>
+            <input
+              id="ownerFromDate"
+              type="date"
+            >
 
-        <input
-          id="cashDate"
-          type="date"
-        >
-
-
-        <label>Amount</label>
-
-        <input
-          id="cashAmount"
-          type="number"
-          min="0"
-          placeholder="Enter amount"
-        >
+          </div>
 
 
-        <label>Note</label>
+          <div>
 
-        <textarea
-          id="cashNote"
-          placeholder="Example: Initial Cash"
-        ></textarea>
+            <label>To Date</label>
+
+            <input
+              id="ownerToDate"
+              type="date"
+            >
+
+          </div>
+
+        </div>
 
 
         <button
           class="primary"
-          id="addCashBtn"
-          onclick="addCash()"
+          onclick="downloadExpenseReport('ownerFromDate', 'ownerToDate')"
         >
-          Add Cash
+          Download CSV
         </button>
+
+        <p class="muted" style="text-align:center;margin-top:14px">
+          Downloads all expense items (with total) between the selected dates.
+        </p>
 
       </div>
 
@@ -635,6 +633,15 @@ textarea {
 
         <button
           class="tile"
+          onclick="showEmployeeSection('cashSection')"
+        >
+          <span>💰</span>
+          Add Cash
+        </button>
+
+
+        <button
+          class="tile"
           onclick="showEmployeeSection('expenseSection')"
         >
           <span>➕</span>
@@ -657,6 +664,127 @@ textarea {
         >
           <span>💰</span>
           Cash History
+        </button>
+
+
+        <button
+          class="tile"
+          onclick="showEmployeeSection('employeeDownloadSection')"
+        >
+          <span>📥</span>
+          Download Report
+        </button>
+
+      </div>
+
+
+      <!-- DOWNLOAD REPORT -->
+
+      <div id="employeeDownloadSection" class="section hidden">
+
+        <button
+          class="secondary back"
+          onclick="hideEmployeeSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Download Expense Report</h3>
+
+        <div class="form-row">
+
+          <div>
+
+            <label>From Date</label>
+
+            <input
+              id="employeeFromDate"
+              type="date"
+            >
+
+          </div>
+
+
+          <div>
+
+            <label>To Date</label>
+
+            <input
+              id="employeeToDate"
+              type="date"
+            >
+
+          </div>
+
+        </div>
+
+
+        <button
+          class="primary"
+          onclick="downloadExpenseReport('employeeFromDate', 'employeeToDate')"
+        >
+          Download CSV
+        </button>
+
+        <p class="muted" style="text-align:center;margin-top:14px">
+          Downloads all expense items (with total) between the selected dates.
+        </p>
+
+      </div>
+
+
+      <!-- ADD CASH -->
+
+      <div id="cashSection" class="section hidden">
+
+        <button
+          class="secondary back"
+          onclick="hideEmployeeSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Add Cash</h3>
+
+        <label>Employee</label>
+
+        <select id="cashEmployee">
+          <option>Selvakumar</option>
+        </select>
+
+
+        <label>Date</label>
+
+        <input
+          id="cashDate"
+          type="date"
+        >
+
+
+        <label>Amount</label>
+
+        <input
+          id="cashAmount"
+          type="number"
+          min="0"
+          placeholder="Enter amount"
+        >
+
+
+        <label>Note</label>
+
+        <textarea
+          id="cashNote"
+          placeholder="Example: Initial Cash"
+        ></textarea>
+
+
+        <button
+          class="primary"
+          id="addCashBtn"
+          onclick="addCash()"
+        >
+          Add Cash
         </button>
 
       </div>
@@ -2029,6 +2157,133 @@ function updateLiveTotal() {
   });
 
 }
+  // Parses a "DD/MM/YYYY" string (the format expense/cash dates are
+  // stored in) into a Date object. Returns null if it doesn't match.
+  function parseDMYDate(value) {
+
+    const parts = String(value || "").split("/");
+
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+
+  }
+
+
+  // Wraps a CSV field in quotes if it contains a comma, quote, or newline.
+  function csvEscape(value) {
+
+    const str = String(value === null || value === undefined ? "" : value);
+
+    if (/[",\n]/.test(str)) {
+      return '"' + str.replace(/"/g, '""') + '"';
+    }
+
+    return str;
+
+  }
+
+
+  // Builds and downloads a CSV of every expense item whose date falls
+  // within the selected range (inclusive), plus a total row. Reads the
+  // date range from the two given input ids so the same function can
+  // be reused by both the Owner and Employee download sections.
+  function downloadExpenseReport(fromInputId, toInputId) {
+
+    const fromValue =
+      document.getElementById(fromInputId).value;
+
+    const toValue =
+      document.getElementById(toInputId).value;
+
+    if (!fromValue || !toValue) {
+      alert("Please select both From Date and To Date.");
+      return;
+    }
+
+    const fromDate = new Date(fromValue + "T00:00:00");
+    const toDate = new Date(toValue + "T23:59:59");
+
+    if (fromDate > toDate) {
+      alert("From Date cannot be after To Date.");
+      return;
+    }
+
+    const rows = [];
+    let total = 0;
+
+    expenses.forEach(function(expense) {
+
+      const expenseDate =
+        parseDMYDate(expense.date);
+
+      if (
+        !expenseDate ||
+        expenseDate < fromDate ||
+        expenseDate > toDate
+      ) {
+        return;
+      }
+
+      expense.items.forEach(function(item) {
+
+        rows.push([
+          expense.date,
+          item.item,
+          item.rate,
+          expense.employee,
+          expense.addedBy
+        ]);
+
+        total += Number(item.rate || 0);
+
+      });
+
+    });
+
+    if (!rows.length) {
+      alert("No expense records found in the selected date range.");
+      return;
+    }
+
+    let csv =
+      ["Date", "Item", "Rate", "Employee", "Added By"]
+        .map(csvEscape)
+        .join(",") + "\n";
+
+    rows.forEach(function(row) {
+      csv += row.map(csvEscape).join(",") + "\n";
+    });
+
+    csv +=
+      "\n" +
+      ["", "Total", total, "", ""].map(csvEscape).join(",") +
+      "\n";
+
+    const blob =
+      new Blob([csv], { type: "text/csv;charset=utf-8;" });
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+    link.download =
+      "C7_Accounts_Expenses_" + fromValue + "_to_" + toValue + ".csv";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+
+  }
+
+
   function escapeHtml(text) {
 
   return String(text).replace(
