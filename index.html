@@ -206,6 +206,38 @@ textarea {
   margin-bottom: 9px;
 }
 
+.balance-tile {
+  background: #111827;
+  color: white;
+}
+
+.tile-amount {
+  font-size: 26px;
+  font-weight: 800;
+  margin-top: 6px;
+}
+
+.ledger-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+.ledger-row:last-child {
+  border-bottom: 0;
+}
+
+.credit {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.debit {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
 .section {
   background: white;
   border-radius: 16px;
@@ -426,36 +458,21 @@ textarea {
 
     <div id="ownerPage" class="hidden">
 
-      <div class="balance">
+      <div class="tiles">
 
-        <small>
-          Selvakumar - Current Balance
-        </small>
-
-        <div id="ownerBalance" class="amount">
-          ₹910
+        <div class="tile balance-tile">
+          <span>💵</span>
+          Check Balance
+          <div id="ownerBalance" class="tile-amount">₹910</div>
         </div>
 
-      </div>
-
-
-      <div class="tiles">
 
         <button
           class="tile"
           onclick="showOwnerSection('transactionsSection')"
         >
-          <span>🧾</span>
-          Transactions
-        </button>
-
-
-        <button
-          class="tile"
-          onclick="showOwnerSection('employeeSection')"
-        >
-          <span>👤</span>
-          Employee Details
+          <span>📖</span>
+          Transaction History
         </button>
 
 
@@ -464,13 +481,43 @@ textarea {
           onclick="showOwnerSection('downloadSection')"
         >
           <span>📥</span>
-          Download Report
+          Download Transactions
+        </button>
+
+
+        <button
+          class="tile"
+          onclick="showOwnerSection('employeeSection')"
+        >
+          <span>👤</span>
+          Employees
         </button>
 
       </div>
 
 
-      <!-- DOWNLOAD REPORT -->
+      <!-- TRANSACTION HISTORY -->
+
+      <div
+        id="transactionsSection"
+        class="section hidden"
+      >
+
+        <button
+          class="secondary back"
+          onclick="hideOwnerSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Transaction History</h3>
+
+        <div id="ownerLedger"></div>
+
+      </div>
+
+
+      <!-- DOWNLOAD TRANSACTIONS -->
 
       <div id="downloadSection" class="section hidden">
 
@@ -481,7 +528,7 @@ textarea {
           ← Back
         </button>
 
-        <h3>Download Expense Report</h3>
+        <h3>Download Transactions</h3>
 
         <div class="form-row">
 
@@ -513,40 +560,19 @@ textarea {
 
         <button
           class="primary"
-          onclick="downloadExpenseReport('ownerFromDate', 'ownerToDate')"
+          onclick="downloadTransactionsPDF('ownerFromDate', 'ownerToDate')"
         >
-          Download CSV
+          Download PDF
         </button>
 
         <p class="muted" style="text-align:center;margin-top:14px">
-          Downloads all expense items (with total) between the selected dates.
+          Downloads a day-wise transaction record for the selected dates.
         </p>
 
       </div>
 
 
-      <!-- TRANSACTIONS -->
-
-      <div
-        id="transactionsSection"
-        class="section hidden"
-      >
-
-        <button
-          class="secondary back"
-          onclick="hideOwnerSections()"
-        >
-          ← Back
-        </button>
-
-        <h3>Transactions</h3>
-
-        <div id="ownerTransactions"></div>
-
-      </div>
-
-
-      <!-- EMPLOYEE DETAILS -->
+      <!-- EMPLOYEES -->
 
       <div
         id="employeeSection"
@@ -560,24 +586,9 @@ textarea {
           ← Back
         </button>
 
-        <h3>Employee Details</h3>
+        <h3>Employees</h3>
 
-        <div class="card">
-
-          <strong>Selvakumar</strong>
-
-          <p class="muted">
-            Username: selva
-          </p>
-
-          <p>
-            Current Balance:
-            <span class="money">
-              ₹910
-            </span>
-          </p>
-
-        </div>
+        <div id="employeesList"></div>
 
       </div>
 
@@ -916,6 +927,7 @@ textarea {
   </div>
 
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxjjHaFd-L4H1wN9r7zjeUfwDEHTzuXnurQXq8FVhhiMxsVuJ0l-Q4Cde7sesk2j8Oy/exec";
 
@@ -1495,7 +1507,9 @@ function renderAll() {
 
   renderCashHistory();
 
-  renderOwnerTransactions();
+  renderOwnerLedger();
+
+  renderEmployeesList();
 
 }
 
@@ -1786,15 +1800,74 @@ function renderCashHistory() {
 }
 
 
-function renderOwnerTransactions() {
+// Combines cashHistory + expenses into one day-wise ledger, notebook
+// style: one entry per calendar day that had any activity, each with
+// its list of credit (cash added) / debit (expense) lines. Sorted
+// oldest first, like pages filled forward in a notebook. Shared by
+// both the on-screen Transaction History view and the PDF export.
+function buildDailyLedger() {
+
+  const dayMap = {};
+
+  cashHistory.forEach(function(cash) {
+
+    if (!dayMap[cash.date]) {
+      dayMap[cash.date] = { date: cash.date, transactions: [] };
+    }
+
+    dayMap[cash.date].transactions.push({
+      type: "credit",
+      label: cash.note || "Cash Added",
+      amount: Number(cash.amount || 0)
+    });
+
+  });
+
+  expenses.forEach(function(expense) {
+
+    if (!dayMap[expense.date]) {
+      dayMap[expense.date] = { date: expense.date, transactions: [] };
+    }
+
+    expense.items.forEach(function(item) {
+
+      dayMap[expense.date].transactions.push({
+        type: "debit",
+        label: item.item,
+        amount: Number(item.rate || 0)
+      });
+
+    });
+
+  });
+
+  const days =
+    Object.keys(dayMap).map(function(key) {
+      return dayMap[key];
+    });
+
+  days.sort(function(a, b) {
+    return parseDMYDate(a.date) - parseDMYDate(b.date);
+  });
+
+  return days;
+
+}
+
+
+// Renders the Owner's day-wise Transaction History: a simple card per
+// day (Date + Day up top) with each transaction and its amount below,
+// notebook-ledger style. No running balance shown here, kept minimal
+// per the simple/notebook design.
+function renderOwnerLedger() {
 
   const box =
-    document.getElementById(
-      "ownerTransactions"
-    );
+    document.getElementById("ownerLedger");
 
+  const days =
+    buildDailyLedger();
 
-  if (!expenses.length) {
+  if (!days.length) {
 
     box.innerHTML =
       '<div class="empty">No transactions found</div>';
@@ -1804,43 +1877,84 @@ function renderOwnerTransactions() {
   }
 
 
-  let running =
-    totalCash();
+  box.innerHTML =
+    days.map(function(day) {
+
+      const rows =
+        day.transactions.map(function(tx) {
+
+          const sign =
+            tx.type === "credit" ? "+" : "−";
+
+          const cls =
+            tx.type === "credit" ? "credit" : "debit";
+
+          return `
+            <div class="ledger-row">
+              <span>${escapeHtml(tx.label)}</span>
+              <span class="${cls}">${sign} ${money(tx.amount)}</span>
+            </div>
+          `;
+
+        }).join("");
+
+      return `
+        <div class="card">
+          <div class="card-head">
+            <strong>${formatDate(day.date)}</strong>
+            <span class="muted">${getDay(day.date)}</span>
+          </div>
+          ${rows}
+        </div>
+      `;
+
+    }).join("");
+
+}
 
 
-  box.innerHTML = "";
+// Lists each employee (from the users list) with their current
+// balance. Single shared balance pool for now, shown per employee.
+function renderEmployeesList() {
 
+  const box =
+    document.getElementById("employeesList");
 
-  expenses.forEach(expense => {
+  if (!box) {
+    return;
+  }
 
-    const total =
-      expense.items.reduce(
-        (sum, item) =>
-          sum + Number(item.rate || 0),
-        0
-      );
+  const balance =
+    currentBalance();
 
+  const employeeNames =
+    Object.keys(users)
+      .map(function(key) { return users[key]; })
+      .filter(function(u) { return u.role === "Employee"; });
 
-    const cashBefore =
-      running;
+  if (!employeeNames.length) {
 
+    box.innerHTML =
+      '<div class="empty">No employees found</div>';
 
-    const balance =
-      cashBefore - total;
+    return;
 
+  }
 
-    running =
-      balance;
+  box.innerHTML =
+    employeeNames.map(function(emp) {
 
+      return `
+        <div class="card">
+          <strong>${escapeHtml(emp.name)}</strong>
+          <p>
+            Current Balance:
+            <span class="money">${money(balance)}</span>
+          </p>
+        </div>
+      `;
 
-    box.innerHTML +=
-      expenseCard(
-        expense,
-        cashBefore,
-        balance
-      );
-
-  });
+    }).join("");
 
 }
   function addCash() {
@@ -2280,6 +2394,127 @@ function updateLiveTotal() {
     document.body.removeChild(link);
 
     URL.revokeObjectURL(url);
+
+  }
+
+
+  // jsPDF's built-in fonts don't include the ₹ glyph, so PDF text uses
+  // "Rs." instead — only for the PDF, the on-screen ₹ symbol elsewhere
+  // in the app is unaffected.
+  function moneyPdf(n) {
+
+    return "Rs. " + Number(n || 0).toLocaleString("en-IN");
+
+  }
+
+
+  // Builds a day-wise, notebook-style PDF of the ledger (same grouping
+  // as the on-screen Transaction History) for the selected date range.
+  function downloadTransactionsPDF(fromInputId, toInputId) {
+
+    const fromValue =
+      document.getElementById(fromInputId).value;
+
+    const toValue =
+      document.getElementById(toInputId).value;
+
+    if (!fromValue || !toValue) {
+      alert("Please select both From Date and To Date.");
+      return;
+    }
+
+    const fromDate = new Date(fromValue + "T00:00:00");
+    const toDate = new Date(toValue + "T23:59:59");
+
+    if (fromDate > toDate) {
+      alert("From Date cannot be after To Date.");
+      return;
+    }
+
+    const days =
+      buildDailyLedger().filter(function(day) {
+
+        const d = parseDMYDate(day.date);
+
+        return d && d >= fromDate && d <= toDate;
+
+      });
+
+    if (!days.length) {
+      alert("No transactions found in the selected date range.");
+      return;
+    }
+
+    if (!window.jspdf) {
+      alert("Could not load the PDF library. Please check your internet connection and try again.");
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    let y = 20;
+
+    doc.setFontSize(16);
+    doc.text("C7 Accounts - Transaction History", 14, y);
+
+    y += 8;
+    doc.setFontSize(10);
+    doc.setTextColor(107, 114, 128);
+    doc.text(formatDate(fromValue.split("-").reverse().join("/")) + "  to  " + formatDate(toValue.split("-").reverse().join("/")), 14, y);
+    doc.setTextColor(17, 24, 39);
+
+    y += 10;
+
+    days.forEach(function(day) {
+
+      if (y > 275) {
+        doc.addPage();
+        y = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont(undefined, "bold");
+      doc.text(formatDate(day.date) + "   (" + getDay(day.date) + ")", 14, y);
+      doc.setFont(undefined, "normal");
+
+      y += 4;
+      doc.setDrawColor(229, 231, 235);
+      doc.line(14, y, 196, y);
+
+      y += 6;
+      doc.setFontSize(10);
+
+      day.transactions.forEach(function(tx) {
+
+        if (y > 280) {
+          doc.addPage();
+          y = 20;
+        }
+
+        const sign = tx.type === "credit" ? "+ " : "- ";
+
+        if (tx.type === "credit") {
+          doc.setTextColor(21, 128, 61);
+        } else {
+          doc.setTextColor(185, 28, 28);
+        }
+
+        doc.text(tx.label, 18, y);
+        doc.text(sign + moneyPdf(tx.amount), 196, y, { align: "right" });
+        doc.setTextColor(17, 24, 39);
+
+        y += 6;
+
+      });
+
+      y += 6;
+
+    });
+
+    doc.save(
+      "C7_Accounts_Transactions_" + fromValue + "_to_" + toValue + ".pdf"
+    );
 
   }
 
