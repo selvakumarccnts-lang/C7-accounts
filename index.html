@@ -238,6 +238,10 @@ textarea {
   font-weight: 700;
 }
 
+.cash-card {
+  border-left: 4px solid #15803d;
+}
+
 .section {
   background: white;
   border-radius: 16px;
@@ -481,7 +485,7 @@ textarea {
           onclick="showOwnerSection('downloadSection')"
         >
           <span>📥</span>
-          Download Transactions
+          Download / Delete Statement
         </button>
 
 
@@ -517,7 +521,7 @@ textarea {
       </div>
 
 
-      <!-- DOWNLOAD TRANSACTIONS -->
+      <!-- DOWNLOAD / DELETE STATEMENT -->
 
       <div id="downloadSection" class="section hidden">
 
@@ -528,7 +532,7 @@ textarea {
           ← Back
         </button>
 
-        <h3>Download Transactions</h3>
+        <h3>Download / Delete Statement</h3>
 
         <div class="form-row">
 
@@ -566,10 +570,26 @@ textarea {
         </button>
 
         <p class="muted" style="text-align:center;margin-top:14px">
-          Downloads a day-wise transaction record for the selected dates.
+          Downloads a statement of transactions for the selected dates,
+          similar to a bank statement.
+        </p>
+
+        <button
+          class="danger"
+          id="deleteStatementBtn"
+          style="width:100%;margin-top:18px"
+          onclick="deleteTransactionsInRange('ownerFromDate', 'ownerToDate')"
+        >
+          Delete Records in This Range
+        </button>
+
+        <p class="muted" style="text-align:center;margin-top:10px">
+          Permanently deletes all cash and expense records in the selected
+          date range. This cannot be undone.
         </p>
 
       </div>
+
 
 
       <!-- EMPLOYEES -->
@@ -1076,7 +1096,7 @@ function formatDate(value) {
 
   if (!value) return "";
 
-  const parts = value.split("/");
+  const parts = String(value).split("/");
 
   if (parts.length === 3) {
 
@@ -1084,11 +1104,22 @@ function formatDate(value) {
 
   }
 
-  const d = new Date(
-    value + "T00:00:00"
-  );
+  // Handles a plain "YYYY-MM-DD" (e.g. from a date input) as local
+  // midnight, and anything else (including a full ISO datetime string,
+  // which is what the backend previously sometimes sent when a sheet
+  // cell auto-converted to a real Date) by letting JS parse it as-is.
+  // The old code always appended "T00:00:00", which broke on strings
+  // that already had a time/timezone part attached — that was the
+  // root cause of dates silently failing to parse.
+  let d;
 
-  if (isNaN(d)) return value;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    d = new Date(value + "T00:00:00");
+  } else {
+    d = new Date(value);
+  }
+
+  if (isNaN(d)) return String(value);
 
   return String(
     d.getDate()
@@ -1131,6 +1162,54 @@ function getDay(value) {
       weekday: "long"
     }
   );
+
+}
+
+
+// Returns the current time as "hh:mm AM/PM" (e.g. "09:33 PM"), used to
+// timestamp cash additions and expense entries when they're saved.
+function currentTimeString() {
+
+  const d = new Date();
+
+  let hours = d.getHours();
+
+  const minutes =
+    String(d.getMinutes()).padStart(2, "0");
+
+  const ampm =
+    hours >= 12 ? "PM" : "AM";
+
+  hours = hours % 12;
+
+  if (hours === 0) {
+    hours = 12;
+  }
+
+  return String(hours).padStart(2, "0") + ":" + minutes + " " + ampm;
+
+}
+
+
+// Converts a "hh:mm AM/PM" string into minutes-since-midnight, for
+// sorting same-day transactions chronologically. Records saved before
+// this feature existed have no time value, so they sort first (0).
+function timeToMinutes(timeStr) {
+
+  const match =
+    String(timeStr || "").match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+
+  if (!match) {
+    return 0;
+  }
+
+  let hours = parseInt(match[1], 10) % 12;
+
+  if (/PM/i.test(match[3])) {
+    hours += 12;
+  }
+
+  return hours * 60 + parseInt(match[2], 10);
 
 }
 
@@ -1326,7 +1405,8 @@ function login() {
           employee: row.employee,
           amount: Number(row.amount || 0),
           addedBy: row.addedBy,
-          note: row.note
+          note: row.note,
+          time: row.time || ""
         };
 
       });
@@ -1537,7 +1617,8 @@ function loadData() {
           employee: row.employee,
           amount: Number(row.amount || 0),
           addedBy: row.addedBy,
-          note: row.note
+          note: row.note,
+          time: row.time || ""
         };
 
       });
@@ -1602,6 +1683,7 @@ function groupExpenseItems(rows) {
         date: date,
         employee: employee,
         addedBy: addedBy,
+        time: row.time || "",
         items: [
           {
             item: row.item,
@@ -1800,74 +1882,93 @@ function renderCashHistory() {
 }
 
 
-// Combines cashHistory + expenses into one day-wise ledger, notebook
-// style: one entry per calendar day that had any activity, each with
-// its list of credit (cash added) / debit (expense) lines. Sorted
-// oldest first, like pages filled forward in a notebook. Shared by
-// both the on-screen Transaction History view and the PDF export.
-function buildDailyLedger() {
+// Combines cashHistory + expenses into one chronological list of
+// transactions (each cash addition, and each expense-save as one
+// entry), oldest first — like pages filled forward in a notebook.
+// Walks through in that order to compute the running balance just
+// before and just after each entry, so every card can show an
+// accurate "Current Balance" / "Balance" or "Already Balance" /
+// "Total Balance" the way the Owner asked for. Shared by both the
+// on-screen Transaction History view and the PDF export.
+function buildTransactionTimeline() {
 
-  const dayMap = {};
+  const txns = [];
 
   cashHistory.forEach(function(cash) {
 
-    if (!dayMap[cash.date]) {
-      dayMap[cash.date] = { date: cash.date, transactions: [] };
-    }
+    const d = parseDMYDate(cash.date);
 
-    dayMap[cash.date].transactions.push({
-      type: "credit",
-      label: cash.note || "Cash Added",
-      amount: Number(cash.amount || 0)
+    txns.push({
+      kind: "cash",
+      date: cash.date,
+      time: cash.time || "",
+      addedBy: cash.addedBy,
+      amount: Number(cash.amount || 0),
+      sortKey:
+        (d ? d.getTime() : 0) + timeToMinutes(cash.time) * 60000
     });
 
   });
 
   expenses.forEach(function(expense) {
 
-    if (!dayMap[expense.date]) {
-      dayMap[expense.date] = { date: expense.date, transactions: [] };
+    const d = parseDMYDate(expense.date);
+
+    const total =
+      expense.items.reduce(function(sum, item) {
+        return sum + Number(item.rate || 0);
+      }, 0);
+
+    txns.push({
+      kind: "expense",
+      date: expense.date,
+      time: expense.time || "",
+      items: expense.items,
+      total: total,
+      sortKey:
+        (d ? d.getTime() : 0) + timeToMinutes(expense.time) * 60000
+    });
+
+  });
+
+  txns.sort(function(a, b) {
+    return a.sortKey - b.sortKey;
+  });
+
+  let running = 0;
+
+  return txns.map(function(tx) {
+
+    const before = running;
+
+    if (tx.kind === "cash") {
+      running += tx.amount;
+    } else {
+      running -= tx.total;
     }
 
-    expense.items.forEach(function(item) {
-
-      dayMap[expense.date].transactions.push({
-        type: "debit",
-        label: item.item,
-        amount: Number(item.rate || 0)
-      });
-
-    });
+    return Object.assign({}, tx, { before: before, after: running });
 
   });
-
-  const days =
-    Object.keys(dayMap).map(function(key) {
-      return dayMap[key];
-    });
-
-  days.sort(function(a, b) {
-    return parseDMYDate(a.date) - parseDMYDate(b.date);
-  });
-
-  return days;
 
 }
 
 
-// Renders the Owner's day-wise Transaction History: a simple card per
-// day (Date + Day up top) with each transaction and its amount below,
-// notebook-ledger style. No running balance shown here, kept minimal
-// per the simple/notebook design.
+// Renders the Owner's Transaction History: one card per transaction,
+// oldest first. Expense entries show Date/Day/Current Balance/Time,
+// the itemized list, then Total Expenses + Balance. Cash additions get
+// their own visually distinct card (green accent) showing who added
+// it, the amount, and the balance before/after — kept separate from
+// expenses as requested.
 function renderOwnerLedger() {
 
   const box =
     document.getElementById("ownerLedger");
 
-  const days =
-    buildDailyLedger();
+  const txns =
+    buildTransactionTimeline();
 
-  if (!days.length) {
+  if (!txns.length) {
 
     box.innerHTML =
       '<div class="empty">No transactions found</div>';
@@ -1878,21 +1979,50 @@ function renderOwnerLedger() {
 
 
   box.innerHTML =
-    days.map(function(day) {
+    txns.map(function(tx) {
 
-      const rows =
-        day.transactions.map(function(tx) {
+      if (tx.kind === "cash") {
 
-          const sign =
-            tx.type === "credit" ? "+" : "−";
+        return `
+          <div class="card cash-card">
+            <strong>Cash Added by ${escapeHtml(tx.addedBy)}</strong>
 
-          const cls =
-            tx.type === "credit" ? "credit" : "debit";
+            <div class="item-row">
+              <span>Date</span>
+              <span>${formatDate(tx.date)} (${getDay(tx.date)})</span>
+            </div>
+
+            <div class="item-row">
+              <span>Time</span>
+              <span>${tx.time ? escapeHtml(tx.time) : "—"}</span>
+            </div>
+
+            <div class="total-row">
+              <span>Cash Added</span>
+              <span class="credit">+ ${money(tx.amount)}</span>
+            </div>
+
+            <div class="item-row">
+              <span>Already Balance</span>
+              <span>${money(tx.before)}</span>
+            </div>
+
+            <div class="total-row">
+              <span>Total Balance</span>
+              <span>${money(tx.after)}</span>
+            </div>
+          </div>
+        `;
+
+      }
+
+      const itemRows =
+        tx.items.map(function(item, index) {
 
           return `
-            <div class="ledger-row">
-              <span>${escapeHtml(tx.label)}</span>
-              <span class="${cls}">${sign} ${money(tx.amount)}</span>
+            <div class="item-row">
+              <span>${index + 1}. ${escapeHtml(item.item)}</span>
+              <span>${money(item.rate)}</span>
             </div>
           `;
 
@@ -1900,11 +2030,37 @@ function renderOwnerLedger() {
 
       return `
         <div class="card">
-          <div class="card-head">
-            <strong>${formatDate(day.date)}</strong>
-            <span class="muted">${getDay(day.date)}</span>
+          <div class="item-row">
+            <span>Date</span>
+            <span>${formatDate(tx.date)}</span>
           </div>
-          ${rows}
+
+          <div class="item-row">
+            <span>Day</span>
+            <span>${getDay(tx.date)}</span>
+          </div>
+
+          <div class="item-row">
+            <span>Current Balance</span>
+            <span>${money(tx.before)}</span>
+          </div>
+
+          <div class="item-row" style="margin-bottom:10px">
+            <span>Time</span>
+            <span>${tx.time ? escapeHtml(tx.time) : "—"}</span>
+          </div>
+
+          ${itemRows}
+
+          <div class="total-row">
+            <span>Total Expenses</span>
+            <span class="debit">${money(tx.total)}</span>
+          </div>
+
+          <div class="total-row">
+            <span>Balance</span>
+            <span>${money(tx.after)}</span>
+          </div>
         </div>
       `;
 
@@ -1992,7 +2148,8 @@ function renderEmployeesList() {
     employee: "Selvakumar",
     amount: amount,
     addedBy: currentUser.name,
-    note: note || "Cash Added"
+    note: note || "Cash Added",
+    time: currentTimeString()
   })
   .then(function(result) {
 
@@ -2217,7 +2374,8 @@ function updateLiveTotal() {
     date: formatDateForStorage(date),
     employee: "Selvakumar",
     items: items,
-    addedBy: currentUser.name
+    addedBy: currentUser.name,
+    time: currentTimeString()
   })
   .then(function(result) {
 
@@ -2431,16 +2589,16 @@ function updateLiveTotal() {
       return;
     }
 
-    const days =
-      buildDailyLedger().filter(function(day) {
+    const txns =
+      buildTransactionTimeline().filter(function(tx) {
 
-        const d = parseDMYDate(day.date);
+        const d = parseDMYDate(tx.date);
 
         return d && d >= fromDate && d <= toDate;
 
       });
 
-    if (!days.length) {
+    if (!txns.length) {
       alert("No transactions found in the selected date range.");
       return;
     }
@@ -2456,7 +2614,7 @@ function updateLiveTotal() {
     let y = 20;
 
     doc.setFontSize(16);
-    doc.text("C7 Accounts - Transaction History", 14, y);
+    doc.text("C7 Accounts - Statement", 14, y);
 
     y += 8;
     doc.setFontSize(10);
@@ -2464,57 +2622,168 @@ function updateLiveTotal() {
     doc.text(formatDate(fromValue.split("-").reverse().join("/")) + "  to  " + formatDate(toValue.split("-").reverse().join("/")), 14, y);
     doc.setTextColor(17, 24, 39);
 
-    y += 10;
+    y += 12;
 
-    days.forEach(function(day) {
+    txns.forEach(function(tx) {
 
-      if (y > 275) {
+      if (y > 265) {
         doc.addPage();
         y = 20;
       }
 
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setFont(undefined, "bold");
-      doc.text(formatDate(day.date) + "   (" + getDay(day.date) + ")", 14, y);
-      doc.setFont(undefined, "normal");
 
-      y += 4;
-      doc.setDrawColor(229, 231, 235);
-      doc.line(14, y, 196, y);
+      if (tx.kind === "cash") {
 
-      y += 6;
-      doc.setFontSize(10);
+        doc.text("Cash Added by " + tx.addedBy, 14, y);
+        doc.setFont(undefined, "normal");
+        doc.setFontSize(10);
 
-      day.transactions.forEach(function(tx) {
+        y += 6;
+        doc.text("Date: " + formatDate(tx.date) + "  (" + getDay(tx.date) + ")   Time: " + (tx.time || "-"), 14, y);
 
-        if (y > 280) {
-          doc.addPage();
-          y = 20;
-        }
-
-        const sign = tx.type === "credit" ? "+ " : "- ";
-
-        if (tx.type === "credit") {
-          doc.setTextColor(21, 128, 61);
-        } else {
-          doc.setTextColor(185, 28, 28);
-        }
-
-        doc.text(tx.label, 18, y);
-        doc.text(sign + moneyPdf(tx.amount), 196, y, { align: "right" });
+        y += 6;
+        doc.setTextColor(21, 128, 61);
+        doc.text("Cash Added: + " + moneyPdf(tx.amount), 14, y);
         doc.setTextColor(17, 24, 39);
 
         y += 6;
+        doc.text("Already Balance: " + moneyPdf(tx.before), 14, y);
 
-      });
+        y += 6;
+        doc.setFont(undefined, "bold");
+        doc.text("Total Balance: " + moneyPdf(tx.after), 14, y);
+        doc.setFont(undefined, "normal");
 
-      y += 6;
+        y += 10;
+
+      } else {
+
+        doc.text("Date: " + formatDate(tx.date) + "   Day: " + getDay(tx.date), 14, y);
+        doc.setFont(undefined, "normal");
+        doc.setFontSize(10);
+
+        y += 6;
+        doc.text("Current Balance: " + moneyPdf(tx.before) + "   Time: " + (tx.time || "-"), 14, y);
+
+        y += 8;
+
+        tx.items.forEach(function(item, index) {
+
+          if (y > 280) {
+            doc.addPage();
+            y = 20;
+          }
+
+          doc.text((index + 1) + ". " + item.item, 18, y);
+          doc.text(moneyPdf(item.rate), 196, y, { align: "right" });
+
+          y += 6;
+
+        });
+
+        y += 2;
+        doc.setTextColor(185, 28, 28);
+        doc.text("Total Expenses: " + moneyPdf(tx.total), 14, y);
+        doc.setTextColor(17, 24, 39);
+
+        y += 6;
+        doc.setFont(undefined, "bold");
+        doc.text("Balance: " + moneyPdf(tx.after), 14, y);
+        doc.setFont(undefined, "normal");
+
+        y += 10;
+
+      }
+
+      doc.setDrawColor(229, 231, 235);
+      doc.line(14, y - 5, 196, y - 5);
 
     });
 
     doc.save(
-      "C7_Accounts_Transactions_" + fromValue + "_to_" + toValue + ".pdf"
+      "C7_Accounts_Statement_" + fromValue + "_to_" + toValue + ".pdf"
     );
+
+  }
+
+
+  // Deletes all cash and expense records within the selected date
+  // range, after an explicit confirmation. Calls the backend, then
+  // reloads data so the dashboard reflects the deletion immediately.
+  function deleteTransactionsInRange(fromInputId, toInputId) {
+
+    const fromValue =
+      document.getElementById(fromInputId).value;
+
+    const toValue =
+      document.getElementById(toInputId).value;
+
+    if (!fromValue || !toValue) {
+      alert("Please select both From Date and To Date.");
+      return;
+    }
+
+    if (fromValue > toValue) {
+      alert("From Date cannot be after To Date.");
+      return;
+    }
+
+    const confirmed = confirm(
+      "This will permanently delete all cash and expense records between " +
+      formatDate(fromValue.split("-").reverse().join("/")) + " and " +
+      formatDate(toValue.split("-").reverse().join("/")) +
+      ". This cannot be undone. Continue?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const deleteBtn =
+      document.getElementById("deleteStatementBtn");
+
+    deleteBtn.disabled = true;
+    deleteBtn.textContent = "Deleting...";
+
+    apiCall("deleteTransactions", {
+      fromDate: formatDateForStorage(fromValue),
+      toDate: formatDateForStorage(toValue)
+    })
+    .then(function(result) {
+
+      if (!result || !result.success) {
+
+        alert(
+          (result && result.message) ||
+          "Could not delete records."
+        );
+
+        return;
+
+      }
+
+      return loadData().then(function() {
+
+        alert(result.message || "Records deleted successfully.");
+
+      });
+
+    })
+    .catch(function(err) {
+
+      console.error(err);
+
+      alert("Could not reach server. Please try again.");
+
+    })
+    .finally(function() {
+
+      deleteBtn.disabled = false;
+      deleteBtn.textContent = "Delete Records in This Range";
+
+    });
 
   }
 
