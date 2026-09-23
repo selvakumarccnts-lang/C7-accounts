@@ -969,10 +969,22 @@ function apiCall(action, payload, retriesLeft) {
     retriesLeft = 1;
   }
 
+  // Uploading a bill photo means the backend also has to create and
+  // share a Google Drive file, which takes noticeably longer than a
+  // normal sheet read/write. A flat 15s timeout was aborting those
+  // requests before Apps Script had a chance to finish, which showed
+  // up as "Could not reach server" even when nothing was actually
+  // broken. Give photo uploads more headroom.
+  const hasBillPhoto =
+    payload && payload.billPhoto && payload.billPhoto.data;
+
+  const timeoutMs =
+    hasBillPhoto ? 45000 : 15000;
+
   const controller = new AbortController();
   const timeoutId = setTimeout(function() {
     controller.abort();
-  }, 15000);
+  }, timeoutMs);
 
   return fetch(API_URL, {
     method: "POST",
