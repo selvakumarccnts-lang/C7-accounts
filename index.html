@@ -890,6 +890,15 @@ textarea {
         </div>
 
 
+        <label>Bill Photo (optional)</label>
+
+        <input
+          id="billPhotoInput"
+          type="file"
+          accept="image/*"
+        >
+
+
         <button
           class="primary"
           id="saveExpenseBtn"
@@ -1168,6 +1177,67 @@ function getDay(value) {
 
 // Returns the current time as "hh:mm AM/PM" (e.g. "09:33 PM"), used to
 // timestamp cash additions and expense entries when they're saved.
+// Resizes/compresses a chosen bill photo client-side before upload
+// (max 1280px on the longer side, JPEG quality 0.7). Keeps typical
+// phone-camera photos small so the upload is fast and reliable
+// instead of risking a timeout on a large original file. Resolves to
+// base64 data (no "data:...;base64," prefix).
+function compressImage(file) {
+
+  return new Promise(function(resolve, reject) {
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+
+      const img = new Image();
+
+      img.onload = function() {
+
+        const maxDim = 1280;
+        let w = img.width;
+        let h = img.height;
+
+        if (w > maxDim || h > maxDim) {
+
+          if (w > h) {
+            h = Math.round(h * maxDim / w);
+            w = maxDim;
+          } else {
+            w = Math.round(w * maxDim / h);
+            h = maxDim;
+          }
+
+        }
+
+        const canvas =
+          document.createElement("canvas");
+
+        canvas.width = w;
+        canvas.height = h;
+
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+
+        const dataUrl =
+          canvas.toDataURL("image/jpeg", 0.7);
+
+        resolve(dataUrl.split(",")[1]);
+
+      };
+
+      img.onerror = reject;
+      img.src = e.target.result;
+
+    };
+
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+
+  });
+
+}
+
+
 function currentTimeString() {
 
   const d = new Date();
@@ -1684,6 +1754,7 @@ function groupExpenseItems(rows) {
         employee: employee,
         addedBy: addedBy,
         time: row.time || "",
+        billPhotoUrl: row.billPhotoUrl || "",
         items: [
           {
             item: row.item,
@@ -1903,6 +1974,7 @@ function buildTransactionTimeline() {
       date: cash.date,
       time: cash.time || "",
       addedBy: cash.addedBy,
+      note: cash.note || "",
       amount: Number(cash.amount || 0),
       sortKey:
         (d ? d.getTime() : 0) + timeToMinutes(cash.time) * 60000
@@ -1924,6 +1996,7 @@ function buildTransactionTimeline() {
       date: expense.date,
       time: expense.time || "",
       items: expense.items,
+      billPhotoUrl: expense.billPhotoUrl || "",
       total: total,
       sortKey:
         (d ? d.getTime() : 0) + timeToMinutes(expense.time) * 60000
@@ -1985,7 +2058,7 @@ function renderOwnerLedger() {
 
         return `
           <div class="card cash-card">
-            <strong>Cash Added by ${escapeHtml(tx.addedBy)}</strong>
+            <strong>Cash Added</strong>
 
             <div class="item-row">
               <span>Date</span>
@@ -2000,6 +2073,11 @@ function renderOwnerLedger() {
             <div class="total-row">
               <span>Cash Added</span>
               <span class="credit">+ ${money(tx.amount)}</span>
+            </div>
+
+            <div class="item-row">
+              <span>Note</span>
+              <span>${escapeHtml(tx.note || "—")}</span>
             </div>
 
             <div class="item-row">
@@ -2061,6 +2139,21 @@ function renderOwnerLedger() {
             <span>Balance</span>
             <span>${money(tx.after)}</span>
           </div>
+
+          ${tx.billPhotoUrl ? `
+            <div class="item-row">
+              <span>Bill Photo</span>
+              <a
+                href="${tx.billPhotoUrl}"
+                target="_blank"
+                rel="noopener"
+                class="secondary"
+                style="padding:6px 14px;border-radius:8px;text-decoration:none;font-size:13px"
+              >
+                View
+              </a>
+            </div>
+          ` : ""}
         </div>
       `;
 
@@ -2370,63 +2463,110 @@ function updateLiveTotal() {
   saveExpenseBtn.disabled = true;
   saveExpenseBtn.textContent = "Saving...";
 
-  apiCall("addExpense", {
-    date: formatDateForStorage(date),
-    employee: "Selvakumar",
-    items: items,
-    addedBy: currentUser.name,
-    time: currentTimeString()
-  })
-  .then(function(result) {
+  const billFile =
+    document.getElementById("billPhotoInput").files[0];
 
-    if (!result || !result.success) {
+  function sendExpense(billPhoto) {
 
-      alert(
-        (result && result.message) ||
-        "Could not save expense."
-      );
+    const payload = {
+      date: formatDateForStorage(date),
+      employee: "Selvakumar",
+      items: items,
+      addedBy: currentUser.name,
+      time: currentTimeString()
+    };
 
-      return;
-
+    if (billPhoto) {
+      payload.billPhoto = billPhoto;
     }
 
-    document
-      .getElementById("itemsBox")
-      .innerHTML = "";
+    apiCall("addExpense", payload)
+    .then(function(result) {
+
+      if (!result || !result.success) {
+
+        alert(
+          (result && result.message) ||
+          "Could not save expense."
+        );
+
+        return;
+
+      }
+
+      document
+        .getElementById("itemsBox")
+        .innerHTML = "";
 
 
-    addItem();
+      addItem();
 
 
-    updateLiveTotal();
+      updateLiveTotal();
+
+      document.getElementById("billPhotoInput").value = "";
 
 
-    return loadData().then(function() {
+      return loadData().then(function() {
+
+        alert(
+          "Expense saved successfully."
+        );
+
+        hideEmployeeSections();
+
+      });
+
+    })
+    .catch(function(err) {
+
+      console.error(err);
 
       alert(
-        "Expense saved successfully."
+        "Could not reach server. Please try again."
       );
 
-      hideEmployeeSections();
+    })
+    .finally(function() {
+
+      saveExpenseBtn.disabled = false;
+      saveExpenseBtn.textContent = "Save Expense";
 
     });
 
-  })
-  .catch(function(err) {
+  }
 
-    console.error(err);
+  if (billFile) {
 
-    alert(
-      "Could not reach server. Please try again."
-    );
+    saveExpenseBtn.textContent = "Processing photo...";
 
-  })
-  .finally(function() {
+    compressImage(billFile)
+      .then(function(base64) {
 
-    saveExpenseBtn.disabled = false;
-    saveExpenseBtn.textContent = "Save Expense";
+        saveExpenseBtn.textContent = "Saving...";
 
-  });
+        sendExpense({
+          data: base64,
+          mimeType: "image/jpeg",
+          filename: "bill_" + Date.now() + ".jpg"
+        });
+
+      })
+      .catch(function(err) {
+
+        console.error(err);
+
+        alert("Could not process the bill photo. Saving the expense without it.");
+
+        sendExpense(null);
+
+      });
+
+  } else {
+
+    sendExpense(null);
+
+  }
 
 }
   // Parses a "DD/MM/YYYY" string (the format expense/cash dates are
