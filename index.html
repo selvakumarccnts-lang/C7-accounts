@@ -242,6 +242,13 @@ textarea {
   border-left: 4px solid #15803d;
 }
 
+.bill-icon {
+  margin-left: 6px;
+  font-size: 13px;
+  text-decoration: none;
+  vertical-align: middle;
+}
+
 .section {
   background: white;
   border-radius: 16px;
@@ -1792,6 +1799,7 @@ function groupExpenseItems(rows) {
       <div class="item-row">
         <span>
           ${index + 1}. ${escapeHtml(item.item)}
+          ${expense.billPhotoUrl ? `<a href="${expense.billPhotoUrl}" target="_blank" rel="noopener" class="bill-icon" title="View bill photo">🧾</a>` : ""}
         </span>
 
         <span>
@@ -2111,7 +2119,10 @@ function renderOwnerLedger() {
 
           return `
             <div class="item-row">
-              <span>${index + 1}. ${escapeHtml(item.item)}</span>
+              <span>
+                ${index + 1}. ${escapeHtml(item.item)}
+                ${tx.billPhotoUrl ? `<a href="${tx.billPhotoUrl}" target="_blank" rel="noopener" class="bill-icon" title="View bill photo">🧾</a>` : ""}
+              </span>
               <span>${money(item.rate)}</span>
             </div>
           `;
@@ -2151,21 +2162,6 @@ function renderOwnerLedger() {
             <span>Balance</span>
             <span>${money(tx.after)}</span>
           </div>
-
-          ${tx.billPhotoUrl ? `
-            <div class="item-row">
-              <span>Bill Photo</span>
-              <a
-                href="${tx.billPhotoUrl}"
-                target="_blank"
-                rel="noopener"
-                class="secondary"
-                style="padding:6px 14px;border-radius:8px;text-decoration:none;font-size:13px"
-              >
-                View
-              </a>
-            </div>
-          ` : ""}
         </div>
       `;
 
