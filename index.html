@@ -1418,10 +1418,11 @@ function login() {
   Promise.all([
     apiCall("login", {
       username: username,
-      password: password
+      password: password,
+      displayName: document.getElementById("username").selectedOptions[0].textContent
     }),
-    apiCall("getCashHistory", { employee: "" }),
-    apiCall("getExpenseItems", { employee: "" })
+    apiCall("getCashHistory", { employee: "" }).catch(function() { return null; }),
+    apiCall("getExpenseItems", { employee: "" }).catch(function() { return null; })
   ])
   .then(function(results) {
 
@@ -1754,11 +1755,13 @@ function groupExpenseItems(rows) {
     const last =
       grouped[grouped.length - 1];
 
-    if (
+       if (
       last &&
       last.date === date &&
       last.employee === employee &&
-      last.addedBy === addedBy
+      last.addedBy === addedBy &&
+      last.time === (row.time || "") &&
+      last.billPhotoUrl === (row.billPhotoUrl || "")
     ) {
 
       last.items.push({
@@ -2517,9 +2520,7 @@ function updateLiveTotal() {
 
       return loadData().then(function() {
 
-        alert(
-          "Expense saved successfully."
-        );
+               alert(result.warning || "Expense saved successfully.");
 
         hideEmployeeSections();
 
