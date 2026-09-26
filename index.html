@@ -325,9 +325,23 @@ textarea {
 
 .item-input {
   display: grid;
-  grid-template-columns: 1fr 110px 40px;
+  grid-template-columns: 1fr 100px 38px 38px;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.photo-btn {
+  background: #e5e7eb;
+  border-radius: 9px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.photo-btn.has-photo {
+  background: #d1fae5;
 }
 
 .remove {
@@ -365,7 +379,7 @@ textarea {
   }
 
   .item-input {
-    grid-template-columns: 1fr 90px 38px;
+    grid-template-columns: 1fr 80px 34px 34px;
   }
 
   .balance .amount {
@@ -680,7 +694,7 @@ textarea {
           class="danger"
           id="deleteStatementBtn"
           style="width:100%;margin-top:18px"
-          onclick="deleteTransactionsInRange('ownerFromDate', 'ownerToDate')"
+          onclick="deleteTransactionsInRange('ownerFromDate', 'ownerToDate', 'deleteStatementBtn')"
         >
           Delete Records in This Range
         </button>
@@ -904,6 +918,20 @@ textarea {
           Downloads all expense items (with total) between the selected dates.
         </p>
 
+        <button
+          class="danger"
+          id="employeeDeleteBtn"
+          style="width:100%;margin-top:18px"
+          onclick="deleteTransactionsInRange('employeeFromDate', 'employeeToDate', 'employeeDeleteBtn')"
+        >
+          Delete Records in This Range
+        </button>
+
+        <p class="muted" style="text-align:center;margin-top:10px">
+          Permanently deletes all cash and expense records in the selected
+          date range. This cannot be undone.
+        </p>
+
       </div>
 
 
@@ -1033,15 +1061,6 @@ textarea {
         </div>
 
 
-        <label>Bill Photo (optional)</label>
-
-        <input
-          id="billPhotoInput"
-          type="file"
-          accept="image/*"
-        >
-
-
         <button
           class="primary"
           id="saveExpenseBtn"
@@ -1112,17 +1131,23 @@ function apiCall(action, payload, retriesLeft) {
     retriesLeft = 1;
   }
 
-  // Uploading a bill photo means the backend also has to create and
-  // share a Google Drive file, which takes noticeably longer than a
+  // Uploading bill photos means the backend also has to create and
+  // share Google Drive files, which takes noticeably longer than a
   // normal sheet read/write. A flat 15s timeout was aborting those
   // requests before Apps Script had a chance to finish, which showed
   // up as "Could not reach server" even when nothing was actually
-  // broken. Give photo uploads more headroom.
+  // broken. Give photo uploads more headroom. Photos now live per
+  // item, so check the whole items array rather than one top-level
+  // field.
   const hasBillPhoto =
-    payload && payload.billPhoto && payload.billPhoto.data;
+    payload &&
+    Array.isArray(payload.items) &&
+    payload.items.some(function(item) {
+      return item.billPhoto && item.billPhoto.data;
+    });
 
   const timeoutMs =
-    hasBillPhoto ? 45000 : 15000;
+    hasBillPhoto ? 60000 : 15000;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(function() {
@@ -2067,7 +2092,8 @@ function groupExpenseItems(rows) {
 
       last.items.push({
         item: row.item,
-        rate: row.rate
+        rate: row.rate,
+        billPhotoUrl: row.billPhotoUrl || ""
       });
 
     } else {
@@ -2077,11 +2103,11 @@ function groupExpenseItems(rows) {
         employee: employee,
         addedBy: addedBy,
         time: row.time || "",
-        billPhotoUrl: row.billPhotoUrl || "",
         items: [
           {
             item: row.item,
-            rate: row.rate
+            rate: row.rate,
+            billPhotoUrl: row.billPhotoUrl || ""
           }
         ]
       });
@@ -2103,7 +2129,7 @@ function groupExpenseItems(rows) {
       <div class="item-row">
         <span>
           ${index + 1}. ${escapeHtml(item.item)}
-          ${expense.billPhotoUrl ? `<a href="${expense.billPhotoUrl}" target="_blank" rel="noopener" class="bill-icon" title="View bill photo">🧾</a>` : ""}
+          ${item.billPhotoUrl ? `<a href="${item.billPhotoUrl}" target="_blank" rel="noopener" class="bill-icon" title="View bill photo">🧾</a>` : ""}
         </span>
 
         <span>
@@ -2320,7 +2346,6 @@ function buildTransactionTimeline() {
       date: expense.date,
       time: expense.time || "",
       items: expense.items,
-      billPhotoUrl: expense.billPhotoUrl || "",
       total: total,
       sortKey:
         (d ? d.getTime() : 0) + timeToMinutes(expense.time) * 60000
@@ -2426,7 +2451,7 @@ function renderOwnerLedger() {
               <span>${index + 1}. ${escapeHtml(item.item)}</span>
               <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
                 <span>${money(item.rate)}</span>
-                ${tx.billPhotoUrl ? `<a href="${tx.billPhotoUrl}" target="_blank" rel="noopener" class="bill-link">🧾 Bill Photo</a>` : ""}
+                ${item.billPhotoUrl ? `<a href="${item.billPhotoUrl}" target="_blank" rel="noopener" class="bill-link">🧾 Bill Photo</a>` : ""}
               </span>
             </div>
           `;
@@ -2649,6 +2674,16 @@ function formatDateForStorage(inputDate) {
       placeholder="Rate"
     >
 
+    <label class="photo-btn" title="Attach bill photo for this item">
+      📷
+      <input
+        class="item-photo-input"
+        type="file"
+        accept="image/*"
+        style="display:none"
+      >
+    </label>
+
     <button
       class="remove"
       onclick="
@@ -2671,6 +2706,25 @@ function formatDateForStorage(inputDate) {
       "input",
       updateLiveTotal
     );
+
+  // Swap the icon/background once a photo is chosen for this item,
+  // so it's clear at a glance which items have one attached.
+  row
+    .querySelector(".item-photo-input")
+    .addEventListener("change", function() {
+
+      const btn =
+        row.querySelector(".photo-btn");
+
+      if (this.files[0]) {
+        btn.classList.add("has-photo");
+        btn.firstChild.textContent = "✅";
+      } else {
+        btn.classList.remove("has-photo");
+        btn.firstChild.textContent = "📷";
+      }
+
+    });
 
 }
 
@@ -2704,43 +2758,7 @@ function updateLiveTotal() {
     ).value;
 
 
-  const items = [];
-
-
-  document
-    .querySelectorAll(
-      "#itemsBox .item-input"
-    )
-    .forEach(row => {
-
-      const item =
-        row
-          .querySelector(".item-name")
-          .value
-          .trim();
-
-
-      const rate =
-        Number(
-          row
-            .querySelector(".item-rate")
-            .value || 0
-        );
-
-
-      if (item && rate > 0) {
-
-        items.push({
-          item: item,
-          rate: rate
-        });
-
-      }
-
-    });
-
-
-  if (!date || !items.length) {
+  if (!date) {
 
     alert(
       "Please enter date and at least one item."
@@ -2751,48 +2769,110 @@ function updateLiveTotal() {
   }
 
 
-  const total =
-    items.reduce(
-      (sum, item) =>
-        sum + item.rate,
-      0
-    );
+  const saveExpenseBtn =
+    document.getElementById("saveExpenseBtn");
 
+  saveExpenseBtn.disabled = true;
+  saveExpenseBtn.textContent = "Processing photos...";
 
-  if (total > currentBalance()) {
+  // Each item row has its own optional photo now, so every row's
+  // photo (if any) gets compressed in parallel before sending.
+  const itemPromises = [];
+
+  document
+    .querySelectorAll("#itemsBox .item-input")
+    .forEach(function(row) {
+
+      const itemName =
+        row.querySelector(".item-name").value.trim();
+
+      const rate =
+        Number(row.querySelector(".item-rate").value || 0);
+
+      if (!itemName || rate <= 0) {
+        return;
+      }
+
+      const file =
+        row.querySelector(".item-photo-input").files[0];
+
+      if (file) {
+
+        itemPromises.push(
+          compressImage(file)
+            .then(function(base64) {
+
+              return {
+                item: itemName,
+                rate: rate,
+                billPhoto: {
+                  data: base64,
+                  mimeType: "image/jpeg",
+                  filename: "bill_" + Date.now() + "_" + Math.random().toString(36).slice(2) + ".jpg"
+                }
+              };
+
+            })
+            .catch(function(err) {
+
+              console.error(err);
+              return { item: itemName, rate: rate };
+
+            })
+        );
+
+      } else {
+
+        itemPromises.push(
+          Promise.resolve({ item: itemName, rate: rate })
+        );
+
+      }
+
+    });
+
+  if (!itemPromises.length) {
 
     alert(
-      "Expense amount is greater than current balance."
+      "Please enter date and at least one item."
     );
+
+    saveExpenseBtn.disabled = false;
+    saveExpenseBtn.textContent = "Save Expense";
 
     return;
 
   }
 
-  const saveExpenseBtn =
-    document.getElementById("saveExpenseBtn");
+  Promise.all(itemPromises).then(function(items) {
 
-  saveExpenseBtn.disabled = true;
-  saveExpenseBtn.textContent = "Saving...";
+    const total =
+      items.reduce(function(sum, item) {
+        return sum + item.rate;
+      }, 0);
 
-  const billFile =
-    document.getElementById("billPhotoInput").files[0];
+    if (total > currentBalance()) {
 
-  function sendExpense(billPhoto) {
+      alert(
+        "Expense amount is greater than current balance."
+      );
 
-    const payload = {
+      saveExpenseBtn.disabled = false;
+      saveExpenseBtn.textContent = "Save Expense";
+
+      return;
+
+    }
+
+    saveExpenseBtn.textContent = "Saving...";
+
+    apiCall("addExpense", {
       date: formatDateForStorage(date),
       employee: "Selvakumar",
       items: items,
       addedBy: currentUser.name,
       time: currentTimeString()
-    };
-
-    if (billPhoto) {
-      payload.billPhoto = billPhoto;
-    }
-
-    apiCall("addExpense", payload)
+    })
     .then(function(result) {
 
       if (!result || !result.success) {
@@ -2815,8 +2895,6 @@ function updateLiveTotal() {
 
 
       updateLiveTotal();
-
-      document.getElementById("billPhotoInput").value = "";
 
 
       return loadData().then(function() {
@@ -2846,39 +2924,7 @@ function updateLiveTotal() {
 
     });
 
-  }
-
-  if (billFile) {
-
-    saveExpenseBtn.textContent = "Processing photo...";
-
-    compressImage(billFile)
-      .then(function(base64) {
-
-        saveExpenseBtn.textContent = "Saving...";
-
-        sendExpense({
-          data: base64,
-          mimeType: "image/jpeg",
-          filename: "bill_" + Date.now() + ".jpg"
-        });
-
-      })
-      .catch(function(err) {
-
-        console.error(err);
-
-        alert("Could not process the bill photo. Saving the expense without it.");
-
-        sendExpense(null);
-
-      });
-
-  } else {
-
-    sendExpense(null);
-
-  }
+  });
 
 }
   // Parses a "DD/MM/YYYY" string (the format expense/cash dates are
@@ -3164,7 +3210,7 @@ function updateLiveTotal() {
   // Deletes all cash and expense records within the selected date
   // range, after an explicit confirmation. Calls the backend, then
   // reloads data so the dashboard reflects the deletion immediately.
-  function deleteTransactionsInRange(fromInputId, toInputId) {
+  function deleteTransactionsInRange(fromInputId, toInputId, buttonId) {
 
     const fromValue =
       document.getElementById(fromInputId).value;
@@ -3194,7 +3240,7 @@ function updateLiveTotal() {
     }
 
     const deleteBtn =
-      document.getElementById("deleteStatementBtn");
+      document.getElementById(buttonId);
 
     deleteBtn.disabled = true;
     deleteBtn.textContent = "Deleting...";
