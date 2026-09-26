@@ -249,6 +249,16 @@ textarea {
   vertical-align: middle;
 }
 
+.bill-link {
+  font-size: 12px;
+  text-decoration: none;
+  color: #111827;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
 .section {
   background: white;
   border-radius: 16px;
@@ -1275,7 +1285,7 @@ function currentTimeString() {
     hours = 12;
   }
 
-  return String(hours).padStart(2, "0") + ":" + minutes + " " + ampm;
+  return String(hours) + ":" + minutes + " " + ampm;
 
 }
 
@@ -2119,11 +2129,11 @@ function renderOwnerLedger() {
 
           return `
             <div class="item-row">
-              <span>
-                ${index + 1}. ${escapeHtml(item.item)}
-                ${tx.billPhotoUrl ? `<a href="${tx.billPhotoUrl}" target="_blank" rel="noopener" class="bill-icon" title="View bill photo">🧾</a>` : ""}
+              <span>${index + 1}. ${escapeHtml(item.item)}</span>
+              <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+                <span>${money(item.rate)}</span>
+                ${tx.billPhotoUrl ? `<a href="${tx.billPhotoUrl}" target="_blank" rel="noopener" class="bill-link">🧾 Bill Photo</a>` : ""}
               </span>
-              <span>${money(item.rate)}</span>
             </div>
           `;
 
