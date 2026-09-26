@@ -455,6 +455,50 @@ textarea {
       Retry
     </button>
 
+    <p
+      id="forgotPinLink"
+      class="muted hidden"
+      style="text-align:center;margin-top:14px"
+    >
+      <a href="#" onclick="showForgotPin(); return false;">Forgot PIN?</a>
+    </p>
+
+  </div>
+
+  <!-- FORGOT PIN (Owner only) -->
+  <div id="forgotPinBox" class="login-box hidden">
+
+    <div class="logo">C7 Accounts</div>
+
+    <div class="subtitle">Reset Owner PIN</div>
+
+    <label>Your Account</label>
+    <select id="forgotTargetUser"></select>
+
+    <label>Authorize using another Owner</label>
+    <select id="forgotAuthUser"></select>
+
+    <label>Their PIN</label>
+    <input id="forgotAuthPin" type="password" placeholder="Other Owner's PIN">
+
+    <label>New PIN</label>
+    <input id="forgotNewPin" type="password" placeholder="Enter new PIN">
+
+    <label>Confirm New PIN</label>
+    <input id="forgotNewPinConfirm" type="password" placeholder="Re-enter new PIN">
+
+    <button class="primary" id="resetPinBtn" onclick="submitForgotPin()">
+      Reset PIN
+    </button>
+
+    <button
+      class="secondary"
+      style="width:100%;margin-top:12px"
+      onclick="hideForgotPin()"
+    >
+      ← Back
+    </button>
+
   </div>
 </div>
 <div id="app" class="hidden">
@@ -512,6 +556,47 @@ textarea {
         >
           <span>👤</span>
           Employees
+        </button>
+
+
+        <button
+          class="tile"
+          onclick="showOwnerSection('ownerSettingsSection')"
+        >
+          <span>⚙️</span>
+          Settings
+        </button>
+
+      </div>
+
+
+      <!-- SETTINGS -->
+
+      <div id="ownerSettingsSection" class="section hidden">
+
+        <button
+          class="secondary back"
+          onclick="hideOwnerSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Change PIN</h3>
+
+        <label>Current PIN</label>
+        <input id="ownerCurrentPin" type="password">
+
+        <label>New PIN</label>
+        <input id="ownerNewPin" type="password">
+
+        <label>Confirm New PIN</label>
+        <input id="ownerNewPinConfirm" type="password">
+
+        <button
+          class="primary"
+          onclick="changeMyPin('ownerCurrentPin', 'ownerNewPin', 'ownerNewPinConfirm')"
+        >
+          Change PIN
         </button>
 
       </div>
@@ -721,6 +806,47 @@ textarea {
         >
           <span>📥</span>
           Download Report
+        </button>
+
+
+        <button
+          class="tile"
+          onclick="showEmployeeSection('employeeSettingsSection')"
+        >
+          <span>⚙️</span>
+          Settings
+        </button>
+
+      </div>
+
+
+      <!-- SETTINGS -->
+
+      <div id="employeeSettingsSection" class="section hidden">
+
+        <button
+          class="secondary back"
+          onclick="hideEmployeeSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Change PIN</h3>
+
+        <label>Current PIN</label>
+        <input id="employeeCurrentPin" type="password">
+
+        <label>New PIN</label>
+        <input id="employeeNewPin" type="password">
+
+        <label>Confirm New PIN</label>
+        <input id="employeeNewPinConfirm" type="password">
+
+        <button
+          class="primary"
+          onclick="changeMyPin('employeeCurrentPin', 'employeeNewPin', 'employeeNewPinConfirm')"
+        >
+          Change PIN
         </button>
 
       </div>
@@ -1370,7 +1496,175 @@ function showLoginForm(role) {
     .getElementById("loginMsg")
     .textContent = "";
 
+  document
+    .getElementById("forgotPinLink")
+    .classList.toggle("hidden", role !== "Owner");
+
   usernameSelect.focus();
+
+}
+
+
+// Forgot-PIN screen (Owner only): populates both dropdowns with Owner
+// accounts — one for whose PIN is being reset, one for the other
+// Owner authorizing the reset.
+function showForgotPin() {
+
+  document.getElementById("login-box").classList.add("hidden");
+  document.getElementById("forgotPinBox").classList.remove("hidden");
+
+  const targetSelect = document.getElementById("forgotTargetUser");
+  const authSelect = document.getElementById("forgotAuthUser");
+
+  targetSelect.innerHTML = "";
+  authSelect.innerHTML = "";
+
+  Object.keys(users).forEach(function(key) {
+
+    if (users[key].role === "Owner") {
+
+      const opt1 = document.createElement("option");
+      opt1.value = key;
+      opt1.textContent = users[key].name;
+      targetSelect.appendChild(opt1);
+
+      const opt2 = document.createElement("option");
+      opt2.value = key;
+      opt2.textContent = users[key].name;
+      authSelect.appendChild(opt2);
+
+    }
+
+  });
+
+  document.getElementById("forgotAuthPin").value = "";
+  document.getElementById("forgotNewPin").value = "";
+  document.getElementById("forgotNewPinConfirm").value = "";
+
+}
+
+
+function hideForgotPin() {
+
+  document.getElementById("forgotPinBox").classList.add("hidden");
+  document.getElementById("login-box").classList.remove("hidden");
+
+}
+
+
+function submitForgotPin() {
+
+  const targetUsername =
+    document.getElementById("forgotTargetUser").value;
+
+  const authUsername =
+    document.getElementById("forgotAuthUser").value;
+
+  const authPin =
+    document.getElementById("forgotAuthPin").value;
+
+  const newPin =
+    document.getElementById("forgotNewPin").value;
+
+  const confirmPin =
+    document.getElementById("forgotNewPinConfirm").value;
+
+  if (targetUsername === authUsername) {
+    alert("Please choose a different Owner to authorize this reset.");
+    return;
+  }
+
+  if (!newPin || newPin !== confirmPin) {
+    alert("New PIN and Confirm New PIN must match.");
+    return;
+  }
+
+  const resetPinBtn =
+    document.getElementById("resetPinBtn");
+
+  resetPinBtn.disabled = true;
+  resetPinBtn.textContent = "Resetting...";
+
+  apiCall("resetOwnerPin", {
+    targetUsername: targetUsername,
+    authUsername: authUsername,
+    authPin: authPin,
+    newPin: newPin
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+
+      alert((result && result.message) || "Could not reset PIN.");
+      return;
+
+    }
+
+    alert("PIN reset successfully. Please log in with the new PIN.");
+    hideForgotPin();
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    alert("Could not reach server. Please try again.");
+
+  })
+  .finally(function() {
+
+    resetPinBtn.disabled = false;
+    resetPinBtn.textContent = "Reset PIN";
+
+  });
+
+}
+
+
+// Shared by both dashboards' Settings tile: changes the currently
+// logged-in user's own PIN, verifying their current PIN first.
+function changeMyPin(currentId, newId, confirmId) {
+
+  const currentPin =
+    document.getElementById(currentId).value;
+
+  const newPin =
+    document.getElementById(newId).value;
+
+  const confirmPin =
+    document.getElementById(confirmId).value;
+
+  if (!newPin || newPin !== confirmPin) {
+    alert("New PIN and Confirm New PIN must match.");
+    return;
+  }
+
+  apiCall("changePin", {
+    username: currentUser.username,
+    currentPin: currentPin,
+    newPin: newPin
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+
+      alert((result && result.message) || "Could not change PIN.");
+      return;
+
+    }
+
+    alert("PIN changed successfully.");
+
+    document.getElementById(currentId).value = "";
+    document.getElementById(newId).value = "";
+    document.getElementById(confirmId).value = "";
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    alert("Could not reach server. Please try again.");
+
+  });
 
 }
 
