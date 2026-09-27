@@ -325,7 +325,7 @@ textarea {
 
 .item-input {
   display: grid;
-  grid-template-columns: 1fr 100px 38px 38px;
+  grid-template-columns: 1fr 90px 36px 36px 36px;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -379,7 +379,7 @@ textarea {
   }
 
   .item-input {
-    grid-template-columns: 1fr 80px 34px 34px;
+    grid-template-columns: 1fr 70px 32px 32px 32px;
   }
 
   .balance .amount {
@@ -575,11 +575,50 @@ textarea {
 
         <button
           class="tile"
+          onclick="showOwnerSection('ownerCashHistorySection')"
+        >
+          <span>💰</span>
+          Cash History
+        </button>
+
+
+        <button
+          class="tile"
           onclick="showOwnerSection('ownerSettingsSection')"
         >
           <span>⚙️</span>
           Settings
         </button>
+
+      </div>
+
+
+      <!-- CASH HISTORY (by month) -->
+
+      <div id="ownerCashHistorySection" class="section hidden">
+
+        <button
+          class="secondary back"
+          onclick="hideOwnerSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Cash History</h3>
+
+        <label>Month</label>
+
+        <input id="ownerCashMonth" type="month">
+
+        <button
+          class="primary"
+          style="margin-top:14px"
+          onclick="renderOwnerCashHistory()"
+        >
+          View
+        </button>
+
+        <div id="ownerCashHistoryResults" style="margin-top:16px"></div>
 
       </div>
 
@@ -2543,6 +2582,69 @@ function renderEmployeesList() {
     }).join("");
 
 }
+
+
+// Owner's Cash History tile: shows cash-added entries for a chosen
+// month, using the existing cashHistory data (no new backend call —
+// this is purely a filtered view of what's already loaded).
+function renderOwnerCashHistory() {
+
+  const monthValue =
+    document.getElementById("ownerCashMonth").value;
+
+  const box =
+    document.getElementById("ownerCashHistoryResults");
+
+  if (!monthValue) {
+    box.innerHTML = '<div class="empty">Please select a month</div>';
+    return;
+  }
+
+  const parts = monthValue.split("-");
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+
+  const entries =
+    cashHistory.filter(function(cash) {
+
+      const d = parseDMYDate(cash.date);
+
+      return d && d.getFullYear() === year && (d.getMonth() + 1) === month;
+
+    });
+
+  if (!entries.length) {
+    box.innerHTML = '<div class="empty">No cash added in this month</div>';
+    return;
+  }
+
+  const total =
+    entries.reduce(function(sum, cash) {
+      return sum + Number(cash.amount || 0);
+    }, 0);
+
+  box.innerHTML =
+    entries.map(function(cash) {
+
+      return `
+        <div class="card">
+          <div class="item-row">
+            <span>${formatDate(cash.date)}</span>
+            <span class="credit">+ ${money(cash.amount)}</span>
+          </div>
+          <div class="muted">${escapeHtml(cash.note || "Cash Added")}</div>
+        </div>
+      `;
+
+    }).join("") +
+    `
+      <div class="total-row">
+        <span>Total Cash Added</span>
+        <span>${money(total)}</span>
+      </div>
+    `;
+
+}
   function addCash() {
 
   const date =
@@ -2674,12 +2776,23 @@ function formatDateForStorage(inputDate) {
       placeholder="Rate"
     >
 
-    <label class="photo-btn" title="Attach bill photo for this item">
+    <label class="photo-btn" data-icon="📷" title="Attach bill photo for this item">
       📷
       <input
         class="item-photo-input"
         type="file"
         accept="image/*"
+        style="display:none"
+      >
+    </label>
+
+    <label class="photo-btn" data-icon="📸" title="Take a live photo for this item">
+      📸
+      <input
+        class="item-camera-input"
+        type="file"
+        accept="image/*"
+        capture="environment"
         style="display:none"
       >
     </label>
@@ -2708,23 +2821,29 @@ function formatDateForStorage(inputDate) {
     );
 
   // Swap the icon/background once a photo is chosen for this item,
-  // so it's clear at a glance which items have one attached.
-  row
-    .querySelector(".item-photo-input")
-    .addEventListener("change", function() {
+  // so it's clear at a glance which items have one attached. Both the
+  // gallery picker and the live-camera button feed the same visual
+  // indicator, since only one photo is kept per item either way.
+  function wirePhotoInput(input) {
 
-      const btn =
-        row.querySelector(".photo-btn");
+    input.addEventListener("change", function() {
+
+      const btn = this.closest(".photo-btn");
 
       if (this.files[0]) {
         btn.classList.add("has-photo");
         btn.firstChild.textContent = "✅";
       } else {
         btn.classList.remove("has-photo");
-        btn.firstChild.textContent = "📷";
+        btn.firstChild.textContent = btn.dataset.icon;
       }
 
     });
+
+  }
+
+  wirePhotoInput(row.querySelector(".item-photo-input"));
+  wirePhotoInput(row.querySelector(".item-camera-input"));
 
 }
 
@@ -2794,6 +2913,7 @@ function updateLiveTotal() {
       }
 
       const file =
+        row.querySelector(".item-camera-input").files[0] ||
         row.querySelector(".item-photo-input").files[0];
 
       if (file) {
