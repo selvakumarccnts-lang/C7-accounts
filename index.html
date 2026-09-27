@@ -211,6 +211,19 @@ textarea {
   color: white;
 }
 
+.owner-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.owner-clock {
+  font-weight: 800;
+  font-size: 18px;
+  white-space: nowrap;
+}
+
 .tile-amount {
   font-size: 26px;
   font-weight: 800;
@@ -537,6 +550,18 @@ textarea {
 
     <div id="ownerPage" class="hidden">
 
+      <div class="owner-topbar">
+
+        <div>
+          <div>Welcome, <span id="ownerWelcomeName"></span></div>
+          <div class="muted">Date: <span id="ownerCurrentDate"></span></div>
+          <div class="muted">Day: <span id="ownerCurrentDay"></span></div>
+        </div>
+
+        <div id="ownerClock" class="owner-clock"></div>
+
+      </div>
+
       <div class="tiles">
 
         <div class="tile balance-tile">
@@ -762,6 +787,41 @@ textarea {
         </button>
 
         <h3>Employees</h3>
+
+        <h3 style="margin-top:0;font-size:15px">Add Employee</h3>
+
+        <label>Name</label>
+        <input id="newEmployeeName" placeholder="Employee name">
+
+        <label>Username</label>
+        <input id="newEmployeeUsername" placeholder="Username for login">
+
+        <label>PIN</label>
+        <input id="newEmployeePin" type="password" placeholder="Set PIN">
+
+        <button
+          class="primary"
+          onclick="addEmployeeAccount()"
+        >
+          Add Employee
+        </button>
+
+        <h3 style="margin-top:20px;font-size:15px">Employee PIN</h3>
+
+        <label>Employee</label>
+        <select id="employeePinTarget"></select>
+
+        <label>New PIN</label>
+        <input id="employeePinNew" type="password" placeholder="New PIN">
+
+        <button
+          class="primary"
+          onclick="setEmployeePinAccount()"
+        >
+          Update PIN
+        </button>
+
+        <h3 style="margin-top:20px;font-size:15px">Existing Employees</h3>
 
         <div id="employeesList"></div>
 
@@ -1241,27 +1301,62 @@ function apiCall(action, payload, retriesLeft) {
 
 }
 
-const users = {
+// Default/fallback set, used until the real list loads from the
+// Users sheet (and if that fetch ever fails) — keeps the existing
+// accounts working either way.
+let users = {
 
   varsha: {
     name: "Varsha",
-    password: "1234",
     role: "Owner"
   },
 
   navin: {
     name: "Navin",
-    password: "1234",
     role: "Owner"
   },
 
   selva: {
     name: "Selvakumar",
-    password: "1234",
     role: "Employee"
   }
 
 };
+
+
+// Replaces the fallback list above with the real accounts from the
+// Users sheet, so a newly added employee shows up in the login
+// dropdown without needing any other frontend change.
+function refreshUsersList() {
+
+  return apiCall("getUsers", {})
+    .then(function(result) {
+
+      if (!Array.isArray(result)) {
+        return;
+      }
+
+      const updated = {};
+
+      result.forEach(function(u) {
+        updated[u.username] = { name: u.name, role: u.role };
+      });
+
+      users = updated;
+
+      if (document.getElementById("employeesList")) {
+        renderEmployeesList();
+      }
+
+    })
+    .catch(function(err) {
+      console.error(err);
+    });
+
+}
+
+
+document.addEventListener("DOMContentLoaded", refreshUsersList);
 
 
 let currentUser = null;
@@ -1500,6 +1595,59 @@ function currentTimeString() {
   return String(hours) + ":" + minutes + " " + ampm;
 
 }
+
+
+// Fills in the Owner dashboard's Welcome/Date/Day/Time topbar. Reuses
+// currentTimeString() so the clock matches the same "h:mm AM/PM" style
+// (no seconds, no timezone) used everywhere else in the app.
+function updateOwnerTopbar() {
+
+  const nameEl =
+    document.getElementById("ownerWelcomeName");
+
+  const dateEl =
+    document.getElementById("ownerCurrentDate");
+
+  const dayEl =
+    document.getElementById("ownerCurrentDay");
+
+  const clockEl =
+    document.getElementById("ownerClock");
+
+  if (!nameEl || !currentUser) {
+    return;
+  }
+
+  nameEl.textContent = currentUser.name;
+
+  const now = new Date();
+
+  dateEl.textContent =
+    String(now.getDate()).padStart(2, "0") + "/" +
+    String(now.getMonth() + 1).padStart(2, "0") + "/" +
+    now.getFullYear();
+
+  dayEl.textContent =
+    now.toLocaleDateString("en-US", { weekday: "long" });
+
+  clockEl.textContent = currentTimeString();
+
+}
+
+
+// Keeps the Owner topbar's clock accurate while the dashboard stays
+// open, without doing any work when the Owner isn't the one looking.
+setInterval(function() {
+
+  if (
+    currentUser &&
+    currentUser.role === "Owner" &&
+    !document.getElementById("ownerPage").classList.contains("hidden")
+  ) {
+    updateOwnerTopbar();
+  }
+
+}, 30000);
 
 
 // Converts a "hh:mm AM/PM" string into minutes-since-midnight, for
@@ -1755,6 +1903,108 @@ function changeMyPin(currentId, newId, confirmId) {
 }
 
 
+// Owner adds a brand-new employee account. Reuses the same Users
+// sheet/login system — the new account can log in immediately once
+// this succeeds, since refreshUsersList() pulls it into the login
+// dropdown right after.
+function addEmployeeAccount() {
+
+  const name =
+    document.getElementById("newEmployeeName").value.trim();
+
+  const username =
+    document.getElementById("newEmployeeUsername").value.trim();
+
+  const pin =
+    document.getElementById("newEmployeePin").value;
+
+  if (!name || !username || !pin) {
+    alert("Please enter name, username, and PIN.");
+    return;
+  }
+
+  apiCall("addEmployee", {
+    name: name,
+    username: username,
+    pin: pin
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+
+      alert((result && result.message) || "Could not add employee.");
+      return;
+
+    }
+
+    alert("Employee added successfully.");
+
+    document.getElementById("newEmployeeName").value = "";
+    document.getElementById("newEmployeeUsername").value = "";
+    document.getElementById("newEmployeePin").value = "";
+
+    return refreshUsersList();
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    alert("Could not reach server. Please try again.");
+
+  });
+
+}
+
+
+// Owner directly sets a chosen employee's PIN (no need to know their
+// current PIN — Owner authority is enough, unlike the self-service
+// Change PIN flow).
+function setEmployeePinAccount() {
+
+  const username =
+    document.getElementById("employeePinTarget").value;
+
+  const newPin =
+    document.getElementById("employeePinNew").value;
+
+  if (!username) {
+    alert("No employee selected.");
+    return;
+  }
+
+  if (!newPin) {
+    alert("Please enter a new PIN.");
+    return;
+  }
+
+  apiCall("setEmployeePin", {
+    username: username,
+    newPin: newPin
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+
+      alert((result && result.message) || "Could not update PIN.");
+      return;
+
+    }
+
+    alert("PIN updated successfully.");
+
+    document.getElementById("employeePinNew").value = "";
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    alert("Could not reach server. Please try again.");
+
+  });
+
+}
+
+
 function showRoleSelect() {
 
   document
@@ -1861,6 +2111,8 @@ function login() {
       document
         .getElementById("employeePage")
         .classList.add("hidden");
+
+      updateOwnerTopbar();
 
     } else {
 
@@ -2576,8 +2828,35 @@ function renderEmployeesList() {
 
   const employeeNames =
     Object.keys(users)
-      .map(function(key) { return users[key]; })
+      .map(function(key) {
+        return {
+          username: key,
+          name: users[key].name,
+          role: users[key].role
+        };
+      })
       .filter(function(u) { return u.role === "Employee"; });
+
+  const pinSelect =
+    document.getElementById("employeePinTarget");
+
+  if (pinSelect) {
+
+    pinSelect.innerHTML = "";
+
+    employeeNames.forEach(function(emp) {
+
+      const option =
+        document.createElement("option");
+
+      option.value = emp.username;
+      option.textContent = emp.name;
+
+      pinSelect.appendChild(option);
+
+    });
+
+  }
 
   if (!employeeNames.length) {
 
