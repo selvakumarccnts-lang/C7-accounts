@@ -306,6 +306,41 @@ textarea {
   font-size: 13px;
 }
 
+.tile-with-badge {
+  position: relative;
+}
+
+.tile-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: #ef4444;
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.unread-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #ef4444;
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .section {
   background: white;
   border-radius: 16px;
@@ -642,11 +677,81 @@ textarea {
 
 
         <button
+          class="tile tile-with-badge"
+          onclick="showOwnerSection('ownerNotificationsSection'); closeNotifChat('ownNotif')"
+        >
+          <span>🔔</span>
+          Employee Notifications
+          <b id="ownerNotifBadge" class="tile-badge hidden"></b>
+        </button>
+
+
+        <button
           class="tile"
           onclick="showOwnerSection('ownerSettingsSection')"
         >
           <span>⚙️</span>
           Settings
+        </button>
+
+      </div>
+
+
+      <!-- EMPLOYEE NOTIFICATIONS -->
+
+      <div id="ownerNotificationsSection" class="section hidden">
+
+        <button
+          class="secondary back"
+          onclick="hideOwnerSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Employee Notifications</h3>
+
+        <div id="ownNotifList"></div>
+
+        <div id="ownNotifChatBox" class="hidden" style="margin-top:16px">
+
+          <h3 id="ownNotifChatTitle" style="font-size:15px"></h3>
+
+          <div id="ownNotifChatMessages"></div>
+
+          <input id="ownNotifChatInput" placeholder="Type your message" style="margin-top:8px">
+
+          <button
+            class="primary"
+            style="margin-top:8px"
+            onclick="sendNotificationReply('ownNotif')"
+          >
+            Send
+          </button>
+
+        </div>
+
+        <h3 style="margin-top:24px;font-size:15px">Delete Chat History</h3>
+
+        <label>Select Date</label>
+        <input id="ownNotifDeleteDate" type="date">
+
+        <button
+          class="secondary"
+          style="width:100%;margin-top:10px"
+          onclick="previewChatForDelete('ownNotif')"
+        >
+          Show Conversation
+        </button>
+
+        <div id="ownNotifDeletePreview" style="margin-top:12px"></div>
+
+        <button
+          class="danger hidden"
+          id="ownNotifDeleteBtn"
+          style="width:100%;margin-top:12px"
+          onclick="deleteChatForDate('ownNotif')"
+        >
+          Delete Chat History
         </button>
 
       </div>
@@ -957,11 +1062,12 @@ textarea {
 
 
         <button
-          class="tile"
-          onclick="showEmployeeSection('employeeNotificationsSection')"
+          class="tile tile-with-badge"
+          onclick="showEmployeeSection('employeeNotificationsSection'); closeNotifChat('empNotif')"
         >
           <span>🔔</span>
           Notifications
+          <b id="empNotifBadge" class="tile-badge hidden"></b>
         </button>
 
 
@@ -989,27 +1095,49 @@ textarea {
 
         <h3>Notifications</h3>
 
-        <div id="notificationsList"></div>
+        <div id="empNotifList"></div>
 
-        <div id="notificationChatBox" class="hidden" style="margin-top:16px">
+        <div id="empNotifChatBox" class="hidden" style="margin-top:16px">
 
-          <h3 id="notificationChatTitle" style="font-size:15px"></h3>
+          <h3 id="empNotifChatTitle" style="font-size:15px"></h3>
 
-          <div id="notificationChatMessages"></div>
+          <div id="empNotifChatMessages"></div>
 
-          <div class="form-row">
-            <input id="notificationChatInput" placeholder="Type your reply">
-          </div>
+          <input id="empNotifChatInput" placeholder="Type your message" style="margin-top:8px">
 
           <button
             class="primary"
             style="margin-top:8px"
-            onclick="sendNotificationReply()"
+            onclick="sendNotificationReply('empNotif')"
           >
-            Send Reply
+            Send
           </button>
 
         </div>
+
+        <h3 style="margin-top:24px;font-size:15px">Delete Chat History</h3>
+
+        <label>Select Date</label>
+        <input id="empNotifDeleteDate" type="date">
+
+        <button
+          class="secondary"
+          style="width:100%;margin-top:10px"
+          onclick="previewChatForDelete('empNotif')"
+        >
+          Show Conversation
+        </button>
+
+        <div id="empNotifDeletePreview" style="margin-top:12px"></div>
+
+        <button
+          class="danger hidden"
+          id="empNotifDeleteBtn"
+          style="width:100%;margin-top:12px"
+          onclick="deleteChatForDate('empNotif')"
+        >
+          Delete Chat History
+        </button>
 
       </div>
 
@@ -2540,7 +2668,10 @@ function groupExpenseItems(rows) {
   return grouped;
 
 }
-  function expenseCard(expense, cashBefore, balance) {
+  function expenseCard(expense, cashBefore, balance, cardIndex) {
+
+  const chatId =
+    "empchat-" + expense.date.replace(/\//g, "-") + "-" + cardIndex;
 
   let rows = "";
 
@@ -2608,9 +2739,18 @@ function groupExpenseItems(rows) {
         <span>${money(balance)}</span>
       </div>
 
-      ${verifiedDates.indexOf(expense.date) !== -1
-        ? '<div class="day-actions"><span class="verified-badge">Done ✓</span></div>'
-        : ""}
+      <div class="day-actions">
+        ${verifiedDates.indexOf(expense.date) !== -1
+          ? '<span class="verified-badge">Done ✓</span>'
+          : ""}
+        <button class="secondary" onclick="toggleDayChat('${chatId}', '${expense.date}')">Messages</button>
+      </div>
+
+      <div id="${chatId}" class="day-chat hidden" data-date="${expense.date}">
+        <div id="${chatId}-messages"></div>
+        <input id="${chatId}-input" placeholder="Type a message">
+        <button class="primary" style="margin-top:8px" onclick="sendDayMessage('${expense.date}', '${chatId}')">Send</button>
+      </div>
 
     </div>
   `;
@@ -2641,7 +2781,7 @@ function groupExpenseItems(rows) {
   box.innerHTML = "";
 
 
-  expenses.forEach(expense => {
+  expenses.forEach((expense, expenseIndex) => {
 
     const total =
       expense.items.reduce(
@@ -2667,7 +2807,8 @@ function groupExpenseItems(rows) {
       expenseCard(
         expense,
         cashBefore,
-        balance
+        balance,
+        expenseIndex
       );
 
   });
@@ -2930,11 +3071,9 @@ function renderOwnerLedger() {
             <button class="secondary" onclick="toggleDayChat('${chatId}', '${tx.date}')">Ask a Question</button>
           </div>
 
-          <div id="${chatId}" class="day-chat hidden">
+          <div id="${chatId}" class="day-chat hidden" data-date="${tx.date}">
             <div id="${chatId}-messages"></div>
-            <div class="form-row">
-              <input id="${chatId}-input" placeholder="Type your question">
-            </div>
+            <input id="${chatId}-input" placeholder="Type your question">
             <button class="primary" style="margin-top:8px" onclick="sendDayMessage('${tx.date}', '${chatId}')">Send</button>
           </div>
         </div>
@@ -2988,7 +3127,12 @@ function toggleDayChat(chatId, date) {
   box.classList.toggle("hidden");
 
   if (!box.classList.contains("hidden")) {
+
     renderChatMessages(date, chatId + "-messages");
+
+    // Opening the conversation counts as reading it.
+    markDateRead(date);
+
   }
 
 }
@@ -3006,40 +3150,11 @@ function sendDayMessage(date, chatId) {
     return;
   }
 
-  apiCall("addDayMessage", {
-    date: date,
-    senderName: currentUser.name,
-    senderRole: currentUser.role,
-    message: message
-  })
-  .then(function(result) {
+  postDayMessage(date, message).then(function(ok) {
 
-    if (!result || !result.success) {
-      alert((result && result.message) || "Could not send message.");
-      return;
+    if (ok) {
+      input.value = "";
     }
-
-    input.value = "";
-
-    return apiCall("getAllMessages", {}).then(function(msgs) {
-
-      if (Array.isArray(msgs)) {
-        allMessages = msgs;
-      }
-
-      renderChatMessages(date, chatId + "-messages");
-
-      if (document.getElementById("notificationsList")) {
-        renderNotificationsList();
-      }
-
-    });
-
-  })
-  .catch(function(err) {
-
-    console.error(err);
-    alert("Could not reach server. Please try again.");
 
   });
 
@@ -3080,29 +3195,99 @@ function markDayOk(date) {
 }
 
 
-// Lists each date on which the Owner has asked a question, so the
-// Employee can tap into it and reply. Reuses renderChatMessages for
-// the actual conversation display.
-let activeNotificationDate = null;
+// ---------------------------------------------------------------
+// Owner <-> Employee chat + notifications.
+// There is ONE conversation per date. Every place it can be opened
+// (Owner Transaction History, Owner Employee Notifications, Employee
+// Expense History, Employee Notifications) reads the same allMessages
+// list filtered by that date, so it's always the same conversation.
+// ---------------------------------------------------------------
 
-function renderNotificationsList() {
+// Which date's conversation is open in each Notifications section
+// ("ownNotif" = Owner's, "empNotif" = Employee's).
+let activeNotif = { ownNotif: null, empNotif: null };
+
+
+// A message is unread for me if the OTHER side sent it and I haven't
+// opened it yet.
+function isUnreadForMe(m) {
+
+  if (!currentUser) {
+    return false;
+  }
+
+  if (currentUser.role === "Owner") {
+    return m.senderRole !== "Owner" && !m.ownerRead;
+  }
+
+  return m.senderRole === "Owner" && !m.employeeRead;
+
+}
+
+
+function unreadCountForDate(date) {
+
+  return allMessages.filter(function(m) {
+    return m.date === date && isUnreadForMe(m);
+  }).length;
+
+}
+
+
+function totalUnreadCount() {
+
+  return allMessages.filter(isUnreadForMe).length;
+
+}
+
+
+function updateNotificationBadges() {
+
+  const total =
+    totalUnreadCount();
+
+  ["ownerNotifBadge", "empNotifBadge"].forEach(function(id) {
+
+    const el =
+      document.getElementById(id);
+
+    if (!el) {
+      return;
+    }
+
+    if (total > 0) {
+      el.textContent = total > 99 ? "99+" : String(total);
+      el.classList.remove("hidden");
+    } else {
+      el.classList.add("hidden");
+    }
+
+  });
+
+}
+
+
+// One row per date that has a conversation, most recently active
+// first, with an unread count and a preview of the latest message.
+function renderNotifList(prefix) {
 
   const box =
-    document.getElementById("notificationsList");
+    document.getElementById(prefix + "List");
 
   if (!box) {
     return;
   }
 
-  const dates = [];
+  const lastIndex = {};
 
-  allMessages.forEach(function(m) {
-
-    if (m.senderRole === "Owner" && dates.indexOf(m.date) === -1) {
-      dates.push(m.date);
-    }
-
+  allMessages.forEach(function(m, i) {
+    lastIndex[m.date] = i;
   });
+
+  const dates =
+    Object.keys(lastIndex).sort(function(a, b) {
+      return lastIndex[b] - lastIndex[a];
+    });
 
   if (!dates.length) {
     box.innerHTML = '<div class="empty">No notifications</div>';
@@ -3112,10 +3297,24 @@ function renderNotificationsList() {
   box.innerHTML =
     dates.map(function(d) {
 
+      const last =
+        allMessages[lastIndex[d]];
+
+      const unread =
+        unreadCountForDate(d);
+
+      const preview =
+        last.message.length > 40
+          ? last.message.slice(0, 40) + "…"
+          : last.message;
+
       return `
-        <div class="card" style="cursor:pointer" onclick="openNotification('${d}')">
-          <strong>${escapeHtml(formatDate(d))}</strong>
-          <div class="muted">${escapeHtml(getDay(d))} — tap to view and reply</div>
+        <div class="card" style="cursor:pointer" onclick="openNotification('${prefix}', '${d}')">
+          <div class="item-row">
+            <strong>${escapeHtml(formatDate(d))}</strong>
+            ${unread ? `<span class="unread-count">${unread}</span>` : ""}
+          </div>
+          <div class="muted">${escapeHtml(getDay(d))} — ${escapeHtml(last.senderName)}: ${escapeHtml(preview)}</div>
         </div>
       `;
 
@@ -3124,39 +3323,148 @@ function renderNotificationsList() {
 }
 
 
-function openNotification(date) {
+// Re-draws both Notifications lists and both tile badges.
+function renderNotificationsList() {
 
-  activeNotificationDate = date;
-
-  document
-    .getElementById("notificationChatBox")
-    .classList.remove("hidden");
-
-  document
-    .getElementById("notificationChatTitle")
-    .textContent =
-    "Conversation — " + formatDate(date);
-
-  renderChatMessages(date, "notificationChatMessages");
+  renderNotifList("ownNotif");
+  renderNotifList("empNotif");
+  updateNotificationBadges();
 
 }
 
 
-function sendNotificationReply() {
+function closeNotifChat(prefix) {
 
-  const input =
-    document.getElementById("notificationChatInput");
+  activeNotif[prefix] = null;
 
-  const message =
-    input.value.trim();
+  document
+    .getElementById(prefix + "ChatBox")
+    .classList.add("hidden");
 
-  if (!message || !activeNotificationDate) {
+}
+
+
+function openNotification(prefix, date) {
+
+  activeNotif[prefix] = date;
+
+  document
+    .getElementById(prefix + "ChatBox")
+    .classList.remove("hidden");
+
+  document
+    .getElementById(prefix + "ChatTitle")
+    .textContent =
+    "Conversation — " + formatDate(date);
+
+  renderChatMessages(date, prefix + "ChatMessages");
+
+  markDateRead(date);
+
+}
+
+
+// Marks everything on a date as read for whoever is logged in: updates
+// the local copy straight away (so badges clear instantly) and tells
+// the backend so it stays read next time.
+function markDateRead(date) {
+
+  if (!currentUser) {
     return;
   }
 
-  const date = activeNotificationDate;
+  let changed = false;
 
-  apiCall("addDayMessage", {
+  allMessages.forEach(function(m) {
+
+    if (m.date === date && isUnreadForMe(m)) {
+
+      if (currentUser.role === "Owner") {
+        m.ownerRead = true;
+      } else {
+        m.employeeRead = true;
+      }
+
+      changed = true;
+
+    }
+
+  });
+
+  if (!changed) {
+    return;
+  }
+
+  renderNotificationsList();
+
+  apiCall("markMessagesRead", {
+    date: date,
+    role: currentUser.role
+  })
+  .catch(function(err) {
+    console.error(err);
+  });
+
+}
+
+
+function isVisibleSection(el) {
+
+  const section =
+    el.closest(".section");
+
+  return !!section && !section.classList.contains("hidden");
+
+}
+
+
+// Re-draws every conversation that's currently open, so a message sent
+// or received in one place shows up in every other place showing that
+// same date. Conversations the person is actually looking at are also
+// marked read.
+function refreshOpenChats() {
+
+  document
+    .querySelectorAll(".day-chat:not(.hidden)")
+    .forEach(function(box) {
+
+      renderChatMessages(box.dataset.date, box.id + "-messages");
+
+      if (isVisibleSection(box)) {
+        markDateRead(box.dataset.date);
+      }
+
+    });
+
+  ["ownNotif", "empNotif"].forEach(function(prefix) {
+
+    const date =
+      activeNotif[prefix];
+
+    const box =
+      document.getElementById(prefix + "ChatBox");
+
+    if (!date || !box || box.classList.contains("hidden")) {
+      return;
+    }
+
+    renderChatMessages(date, prefix + "ChatMessages");
+
+    if (isVisibleSection(box)) {
+      markDateRead(date);
+    }
+
+  });
+
+}
+
+
+// The one place a message gets sent from, whichever screen it was typed
+// on. Saves it, reloads the shared message list, and refreshes every
+// open view + badge. Resolves true on success.
+function postDayMessage(date, message) {
+
+  return apiCall("addDayMessage", {
     date: date,
     senderName: currentUser.name,
     senderRole: currentUser.role,
@@ -3165,11 +3473,11 @@ function sendNotificationReply() {
   .then(function(result) {
 
     if (!result || !result.success) {
-      alert((result && result.message) || "Could not send reply.");
-      return;
-    }
 
-    input.value = "";
+      alert((result && result.message) || "Could not send message.");
+      return false;
+
+    }
 
     return apiCall("getAllMessages", {}).then(function(msgs) {
 
@@ -3177,8 +3485,135 @@ function sendNotificationReply() {
         allMessages = msgs;
       }
 
-      renderChatMessages(date, "notificationChatMessages");
+      refreshOpenChats();
       renderNotificationsList();
+
+      return true;
+
+    });
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    alert("Could not reach server. Please try again.");
+    return false;
+
+  });
+
+}
+
+
+function sendNotificationReply(prefix) {
+
+  const input =
+    document.getElementById(prefix + "ChatInput");
+
+  const message =
+    input.value.trim();
+
+  const date =
+    activeNotif[prefix];
+
+  if (!message || !date) {
+    return;
+  }
+
+  postDayMessage(date, message).then(function(ok) {
+
+    if (ok) {
+      input.value = "";
+    }
+
+  });
+
+}
+
+
+// "Delete Chat History": pick a date, see that day's conversation,
+// then delete it. Only the chat is removed — transactions, expenses,
+// cash records, bill photos and Done status are untouched.
+function previewChatForDelete(prefix) {
+
+  const value =
+    document.getElementById(prefix + "DeleteDate").value;
+
+  if (!value) {
+    alert("Please select a date.");
+    return;
+  }
+
+  const date =
+    formatDateForStorage(value);
+
+  renderChatMessages(date, prefix + "DeletePreview");
+
+  const hasMessages =
+    allMessages.some(function(m) { return m.date === date; });
+
+  document
+    .getElementById(prefix + "DeleteBtn")
+    .classList.toggle("hidden", !hasMessages);
+
+}
+
+
+function deleteChatForDate(prefix) {
+
+  const value =
+    document.getElementById(prefix + "DeleteDate").value;
+
+  if (!value) {
+    alert("Please select a date.");
+    return;
+  }
+
+  const date =
+    formatDateForStorage(value);
+
+  const confirmed = confirm(
+    "Delete the whole chat history for " + formatDate(date) +
+    "? This cannot be undone. Your transactions, expenses and bill photos are not affected."
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  apiCall("deleteDayMessages", { date: date })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+
+      alert((result && result.message) || "Could not delete chat history.");
+      return;
+
+    }
+
+    return apiCall("getAllMessages", {}).then(function(msgs) {
+
+      if (Array.isArray(msgs)) {
+        allMessages = msgs;
+      }
+
+      ["ownNotif", "empNotif"].forEach(function(p) {
+
+        if (activeNotif[p] === date) {
+          closeNotifChat(p);
+        }
+
+      });
+
+      refreshOpenChats();
+      renderNotificationsList();
+
+      renderChatMessages(date, prefix + "DeletePreview");
+
+      document
+        .getElementById(prefix + "DeleteBtn")
+        .classList.add("hidden");
+
+      alert(result.message || "Chat history deleted.");
 
     });
 
@@ -3191,6 +3626,30 @@ function sendNotificationReply() {
   });
 
 }
+
+
+// Light background refresh so a new message or reply (and its unread
+// badge) shows up without logging in again. Only runs while someone is
+// logged in and the app is actually on screen.
+setInterval(function() {
+
+  if (!currentUser || document.visibilityState !== "visible") {
+    return;
+  }
+
+  apiCall("getAllMessages", {})
+    .then(function(msgs) {
+
+      if (Array.isArray(msgs)) {
+        allMessages = msgs;
+        refreshOpenChats();
+        renderNotificationsList();
+      }
+
+    })
+    .catch(function() {});
+
+}, 60000);
 
 
 // Lists each employee (from the users list) with their current
