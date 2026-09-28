@@ -272,6 +272,40 @@ textarea {
   white-space: nowrap;
 }
 
+.day-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.day-actions button {
+  flex: 1;
+  padding: 8px;
+  font-size: 13px;
+}
+
+.verified-badge {
+  flex: 1;
+  text-align: center;
+  background: #d1fae5;
+  color: #15803d;
+  font-weight: 800;
+  padding: 8px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.day-chat {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.chat-line {
+  padding: 5px 0;
+  font-size: 13px;
+}
+
 .section {
   background: white;
   border-radius: 16px;
@@ -924,11 +958,58 @@ textarea {
 
         <button
           class="tile"
+          onclick="showEmployeeSection('employeeNotificationsSection')"
+        >
+          <span>🔔</span>
+          Notifications
+        </button>
+
+
+        <button
+          class="tile"
           onclick="showEmployeeSection('employeeSettingsSection')"
         >
           <span>⚙️</span>
           Settings
         </button>
+
+      </div>
+
+
+      <!-- NOTIFICATIONS -->
+
+      <div id="employeeNotificationsSection" class="section hidden">
+
+        <button
+          class="secondary back"
+          onclick="hideEmployeeSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Notifications</h3>
+
+        <div id="notificationsList"></div>
+
+        <div id="notificationChatBox" class="hidden" style="margin-top:16px">
+
+          <h3 id="notificationChatTitle" style="font-size:15px"></h3>
+
+          <div id="notificationChatMessages"></div>
+
+          <div class="form-row">
+            <input id="notificationChatInput" placeholder="Type your reply">
+          </div>
+
+          <button
+            class="primary"
+            style="margin-top:8px"
+            onclick="sendNotificationReply()"
+          >
+            Send Reply
+          </button>
+
+        </div>
 
       </div>
 
@@ -1360,6 +1441,11 @@ document.addEventListener("DOMContentLoaded", refreshUsersList);
 
 
 let currentUser = null;
+
+// Verified (OK'd) dates, and every question/reply message across all
+// dates — both loaded alongside cash/expense data on login/refresh.
+let verifiedDates = [];
+let allMessages = [];
 
 
 let cashHistory = [
@@ -2061,7 +2147,9 @@ function login() {
       password: password
     }),
     apiCall("getCashHistory", { employee: "" }),
-    apiCall("getExpenseItems", { employee: "" })
+    apiCall("getExpenseItems", { employee: "" }),
+    apiCall("getVerifiedDates", {}),
+    apiCall("getAllMessages", {})
   ])
   .then(function(results) {
 
@@ -2148,6 +2236,14 @@ function login() {
 
       expenses = groupExpenseItems(itemRows);
 
+    }
+
+    if (Array.isArray(results[3])) {
+      verifiedDates = results[3];
+    }
+
+    if (Array.isArray(results[4])) {
+      allMessages = results[4];
     }
 
     renderAll();
@@ -2322,6 +2418,8 @@ function renderAll() {
 
   renderEmployeesList();
 
+  renderNotificationsList();
+
 }
 
 
@@ -2332,7 +2430,9 @@ function loadData() {
 
   return Promise.all([
     apiCall("getCashHistory", { employee: "" }),
-    apiCall("getExpenseItems", { employee: "" })
+    apiCall("getExpenseItems", { employee: "" }),
+    apiCall("getVerifiedDates", {}),
+    apiCall("getAllMessages", {})
   ])
   .then(function(results) {
 
@@ -2360,6 +2460,14 @@ function loadData() {
 
       expenses = groupExpenseItems(itemRows);
 
+    }
+
+    if (Array.isArray(results[2])) {
+      verifiedDates = results[2];
+    }
+
+    if (Array.isArray(results[3])) {
+      allMessages = results[3];
     }
 
     renderAll();
@@ -2499,6 +2607,10 @@ function groupExpenseItems(rows) {
         <span>Balance</span>
         <span>${money(balance)}</span>
       </div>
+
+      ${verifiedDates.indexOf(expense.date) !== -1
+        ? '<div class="day-actions"><span class="verified-badge">Done ✓</span></div>'
+        : ""}
 
     </div>
   `;
@@ -2714,7 +2826,7 @@ function renderOwnerLedger() {
 
 
   box.innerHTML =
-    txns.map(function(tx) {
+    txns.map(function(tx, txIndex) {
 
       if (tx.kind === "cash") {
 
@@ -2771,6 +2883,12 @@ function renderOwnerLedger() {
 
         }).join("");
 
+      const chatId =
+        "chat-" + tx.date.replace(/\//g, "-") + "-" + txIndex;
+
+      const isVerified =
+        verifiedDates.indexOf(tx.date) !== -1;
+
       return `
         <div class="card">
           <div class="item-row">
@@ -2804,10 +2922,273 @@ function renderOwnerLedger() {
             <span>Balance</span>
             <span>${money(tx.after)}</span>
           </div>
+
+          <div class="day-actions">
+            ${isVerified
+              ? '<span class="verified-badge">Done ✓</span>'
+              : `<button class="secondary" onclick="markDayOk('${tx.date}')">OK</button>`}
+            <button class="secondary" onclick="toggleDayChat('${chatId}', '${tx.date}')">Ask a Question</button>
+          </div>
+
+          <div id="${chatId}" class="day-chat hidden">
+            <div id="${chatId}-messages"></div>
+            <div class="form-row">
+              <input id="${chatId}-input" placeholder="Type your question">
+            </div>
+            <button class="primary" style="margin-top:8px" onclick="sendDayMessage('${tx.date}', '${chatId}')">Send</button>
+          </div>
         </div>
       `;
 
     }).join("");
+
+}
+
+
+// Shared by Owner's per-day chat and Employee's Notifications reply
+// view: renders every message for one date into the given container.
+function renderChatMessages(date, containerId) {
+
+  const container =
+    document.getElementById(containerId);
+
+  if (!container) {
+    return;
+  }
+
+  const msgs =
+    allMessages.filter(function(m) { return m.date === date; });
+
+  if (!msgs.length) {
+    container.innerHTML = '<div class="muted">No messages yet.</div>';
+    return;
+  }
+
+  container.innerHTML =
+    msgs.map(function(m) {
+
+      return `
+        <div class="chat-line">
+          <strong>${escapeHtml(m.senderName)}:</strong>
+          ${escapeHtml(m.message)}
+          <span class="muted">(${escapeHtml(m.time)})</span>
+        </div>
+      `;
+
+    }).join("");
+
+}
+
+
+function toggleDayChat(chatId, date) {
+
+  const box =
+    document.getElementById(chatId);
+
+  box.classList.toggle("hidden");
+
+  if (!box.classList.contains("hidden")) {
+    renderChatMessages(date, chatId + "-messages");
+  }
+
+}
+
+
+function sendDayMessage(date, chatId) {
+
+  const input =
+    document.getElementById(chatId + "-input");
+
+  const message =
+    input.value.trim();
+
+  if (!message) {
+    return;
+  }
+
+  apiCall("addDayMessage", {
+    date: date,
+    senderName: currentUser.name,
+    senderRole: currentUser.role,
+    message: message
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+      alert((result && result.message) || "Could not send message.");
+      return;
+    }
+
+    input.value = "";
+
+    return apiCall("getAllMessages", {}).then(function(msgs) {
+
+      if (Array.isArray(msgs)) {
+        allMessages = msgs;
+      }
+
+      renderChatMessages(date, chatId + "-messages");
+
+      if (document.getElementById("notificationsList")) {
+        renderNotificationsList();
+      }
+
+    });
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    alert("Could not reach server. Please try again.");
+
+  });
+
+}
+
+
+function markDayOk(date) {
+
+  apiCall("markDayVerified", {
+    date: date,
+    verifiedBy: currentUser.name
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+      alert((result && result.message) || "Could not mark as done.");
+      return;
+    }
+
+    return apiCall("getVerifiedDates", {}).then(function(dates) {
+
+      if (Array.isArray(dates)) {
+        verifiedDates = dates;
+      }
+
+      renderOwnerLedger();
+
+    });
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    alert("Could not reach server. Please try again.");
+
+  });
+
+}
+
+
+// Lists each date on which the Owner has asked a question, so the
+// Employee can tap into it and reply. Reuses renderChatMessages for
+// the actual conversation display.
+let activeNotificationDate = null;
+
+function renderNotificationsList() {
+
+  const box =
+    document.getElementById("notificationsList");
+
+  if (!box) {
+    return;
+  }
+
+  const dates = [];
+
+  allMessages.forEach(function(m) {
+
+    if (m.senderRole === "Owner" && dates.indexOf(m.date) === -1) {
+      dates.push(m.date);
+    }
+
+  });
+
+  if (!dates.length) {
+    box.innerHTML = '<div class="empty">No notifications</div>';
+    return;
+  }
+
+  box.innerHTML =
+    dates.map(function(d) {
+
+      return `
+        <div class="card" style="cursor:pointer" onclick="openNotification('${d}')">
+          <strong>${escapeHtml(formatDate(d))}</strong>
+          <div class="muted">${escapeHtml(getDay(d))} — tap to view and reply</div>
+        </div>
+      `;
+
+    }).join("");
+
+}
+
+
+function openNotification(date) {
+
+  activeNotificationDate = date;
+
+  document
+    .getElementById("notificationChatBox")
+    .classList.remove("hidden");
+
+  document
+    .getElementById("notificationChatTitle")
+    .textContent =
+    "Conversation — " + formatDate(date);
+
+  renderChatMessages(date, "notificationChatMessages");
+
+}
+
+
+function sendNotificationReply() {
+
+  const input =
+    document.getElementById("notificationChatInput");
+
+  const message =
+    input.value.trim();
+
+  if (!message || !activeNotificationDate) {
+    return;
+  }
+
+  const date = activeNotificationDate;
+
+  apiCall("addDayMessage", {
+    date: date,
+    senderName: currentUser.name,
+    senderRole: currentUser.role,
+    message: message
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+      alert((result && result.message) || "Could not send reply.");
+      return;
+    }
+
+    input.value = "";
+
+    return apiCall("getAllMessages", {}).then(function(msgs) {
+
+      if (Array.isArray(msgs)) {
+        allMessages = msgs;
+      }
+
+      renderChatMessages(date, "notificationChatMessages");
+      renderNotificationsList();
+
+    });
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    alert("Could not reach server. Please try again.");
+
+  });
 
 }
 
