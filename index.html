@@ -252,19 +252,36 @@ textarea {
 }
 
 .card.cash-card {
-  background: #f6c945;
-  color: #111827;
-  border: 1px solid #d4a017;
+  position: relative;
+  background: #ffffff;
+  border: 2px solid #d4af37;
+  box-shadow: 0 0 0 1px #f3e2a0 inset, 0 3px 12px rgba(212, 175, 55, 0.25);
 }
 
-.card.cash-card .muted {
-  color: #5b4a0a;
+/* small golden leaf, top-right corner */
+.card.cash-card::before {
+  content: "❧";
+  position: absolute;
+  top: 4px;
+  right: 10px;
+  font-size: 22px;
+  line-height: 1;
+  color: #d4af37;
+  transform: rotate(-20deg);
+  pointer-events: none;
 }
 
-.card.cash-card .card-head,
-.card.cash-card .total-row,
-.card.cash-card .item-row {
-  border-color: rgba(17, 24, 39, 0.2);
+/* small golden leaf, bottom-left corner */
+.card.cash-card::after {
+  content: "❧";
+  position: absolute;
+  bottom: 4px;
+  left: 8px;
+  font-size: 22px;
+  line-height: 1;
+  color: #d4af37;
+  transform: rotate(160deg);
+  pointer-events: none;
 }
 .bill-icon {
   margin-left: 6px;
