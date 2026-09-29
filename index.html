@@ -252,7 +252,9 @@ textarea {
 }
 
 .cash-card {
-  border-left: 4px solid #15803d;
+  background: #fdf1b8;
+  border: 1px solid #d4af37;
+  border-left: 4px solid #d4af37;
 }
 
 .bill-icon {
@@ -703,7 +705,13 @@ textarea {
           <span>⚙️</span>
           Settings
         </button>
-
+        <button
+          class="tile"
+          onclick="showOwnerSection('ownerUsersSection'); loadOwnerUsers()"
+        >
+          <span>👥</span>
+          Users
+        </button>
       </div>
 
 
@@ -796,7 +804,37 @@ textarea {
 
       </div>
 
+      <!-- USERS -->
 
+      <div id="ownerUsersSection" class="section hidden">
+
+        <button
+          class="secondary back"
+          onclick="hideOwnerSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Users</h3>
+
+        <div id="ownerUsersList"></div>
+
+        <h3 style="margin-top:20px;font-size:15px">Add Owner</h3>
+
+        <label>Owner Name</label>
+        <input id="newOwnerName" placeholder="Owner name">
+
+        <label>PIN</label>
+        <input id="newOwnerPin" type="text" placeholder="Set PIN">
+
+        <button
+          class="primary"
+          onclick="addOwnerAccount()"
+        >
+          Add Owner
+        </button>
+
+      </div>
       <!-- SETTINGS -->
 
       <div id="ownerSettingsSection" class="section hidden">
@@ -2112,7 +2150,7 @@ function changeMyPin(currentId, newId, confirmId) {
     }
 
     alert("PIN changed successfully.");
-
+    currentUser.pin = newPin;
     document.getElementById(currentId).value = "";
     document.getElementById(newId).value = "";
     document.getElementById(confirmId).value = "";
@@ -2180,7 +2218,102 @@ function addEmployeeAccount() {
 
 }
 
+// Fills the Users screen with every Owner and their PIN.
+function loadOwnerUsers() {
 
+  const box =
+    document.getElementById("ownerUsersList");
+
+  box.innerHTML = '<div class="muted">Loading...</div>';
+
+  apiCall("getOwnerPins", {
+    authUsername: currentUser.username,
+    authPin: currentUser.pin
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+
+      box.innerHTML =
+        '<div class="empty">' +
+        escapeHtml((result && result.message) || "Could not load users") +
+        '</div>';
+
+      return;
+
+    }
+
+    box.innerHTML =
+      result.owners.map(function(owner, index) {
+
+        return `
+          <div class="card">
+            <strong>Owner ${index + 1} → ${escapeHtml(owner.name)}</strong>
+            <p>PIN: <span class="money">${escapeHtml(owner.pin)}</span></p>
+          </div>
+        `;
+
+      }).join("");
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    box.innerHTML = '<div class="empty">Could not reach server</div>';
+
+  });
+
+}
+
+
+// Adds a new Owner, then refreshes the Users list and the login
+// dropdown so the new Owner can log in immediately.
+function addOwnerAccount() {
+
+  const name =
+    document.getElementById("newOwnerName").value.trim();
+
+  const pin =
+    document.getElementById("newOwnerPin").value.trim();
+
+  if (!name || !pin) {
+    alert("Please enter owner name and PIN.");
+    return;
+  }
+
+  apiCall("addOwner", {
+    name: name,
+    pin: pin,
+    authUsername: currentUser.username,
+    authPin: currentUser.pin
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+
+      alert((result && result.message) || "Could not add owner.");
+      return;
+
+    }
+
+    alert("Owner added successfully.");
+
+    document.getElementById("newOwnerName").value = "";
+    document.getElementById("newOwnerPin").value = "";
+
+    loadOwnerUsers();
+
+    return refreshUsersList();
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    alert("Could not reach server. Please try again.");
+
+  });
+
+}
 // Owner directly sets a chosen employee's PIN (no need to know their
 // current PIN — Owner authority is enough, unlike the self-service
 // Change PIN flow).
@@ -2307,10 +2440,11 @@ function login() {
 
     }
 
-    currentUser = {
+        currentUser = {
       name: result.name,
       username: result.username,
-      role: result.role
+      role: result.role,
+      pin: password
     };
 
 
@@ -2862,7 +2996,7 @@ function renderCashHistory() {
   box.innerHTML =
     cashHistory.map(cash => `
 
-      <div class="card">
+           <div class="card cash-card">
 
         <div class="card-head">
 
