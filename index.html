@@ -2450,7 +2450,9 @@ function showOwnerSection(id) {
   document
     .getElementById(id)
     .classList.remove("hidden");
-
+  if (id === "transactionsSection") {
+    refreshDayStatus();
+  }
 }
 
 
@@ -2476,7 +2478,9 @@ function showEmployeeSection(id) {
   document
     .getElementById(id)
     .classList.remove("hidden");
-
+  if (id === "historySection") {
+    refreshDayStatus();
+  }
 }
 
 
@@ -3693,6 +3697,44 @@ function deleteChatForDate(prefix) {
 // Light background refresh so a new message or reply (and its unread
 // badge) shows up without logging in again. Only runs while someone is
 // logged in and the app is actually on screen.
+// Reloads which days are Submitted / Done, and only redraws the cards
+// if something actually changed (so open chat boxes aren't disturbed).
+function refreshDayStatus() {
+
+  if (!currentUser) {
+    return Promise.resolve();
+  }
+
+  return Promise.all([
+    apiCall("getSubmittedDates", {}),
+    apiCall("getVerifiedDates", {})
+  ])
+  .then(function(results) {
+
+    const newSubmitted =
+      Array.isArray(results[0]) ? results[0] : submittedDates;
+
+    const newVerified =
+      Array.isArray(results[1]) ? results[1] : verifiedDates;
+
+    const changed =
+      JSON.stringify(newSubmitted) !== JSON.stringify(submittedDates) ||
+      JSON.stringify(newVerified) !== JSON.stringify(verifiedDates);
+
+    submittedDates = newSubmitted;
+    verifiedDates = newVerified;
+
+    if (changed) {
+      renderExpenseHistory();
+      renderOwnerLedger();
+    }
+
+  })
+  .catch(function() {});
+
+}
+
+
 setInterval(function() {
 
   if (!currentUser || document.visibilityState !== "visible") {
@@ -3710,6 +3752,8 @@ setInterval(function() {
 
     })
     .catch(function() {});
+
+  refreshDayStatus();
 
 }, 60000);
 
