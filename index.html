@@ -294,6 +294,16 @@ textarea {
   border-radius: 9px;
   font-size: 13px;
 }
+  .pending-badge {
+  flex: 1;
+  text-align: center;
+  background: #fef3c7;
+  color: #b45309;
+  font-weight: 800;
+  padding: 8px;
+  border-radius: 9px;
+  font-size: 13px;
+}
 
 .day-chat {
   margin-top: 12px;
@@ -621,10 +631,10 @@ textarea {
 
       <div class="owner-topbar">
 
-        <div>
-          <div>Welcome, <span id="ownerWelcomeName"></span></div>
-          <div class="muted">Date: <span id="ownerCurrentDate"></span></div>
-          <div class="muted">Day: <span id="ownerCurrentDay"></span></div>
+                <div>
+          <div style="font-size:20px;font-weight:800">Welcome <span id="ownerWelcomeName"></span></div>
+          <div class="muted"><span id="ownerCurrentDate"></span></div>
+          <div class="muted"><span id="ownerCurrentDay"></span></div>
         </div>
 
         <div id="ownerClock" class="owner-clock"></div>
@@ -1573,6 +1583,7 @@ let currentUser = null;
 // Verified (OK'd) dates, and every question/reply message across all
 // dates — both loaded alongside cash/expense data on login/refresh.
 let verifiedDates = [];
+let submittedDates = [];
 let allMessages = [];
 
 
@@ -2277,7 +2288,8 @@ function login() {
     apiCall("getCashHistory", { employee: "" }),
     apiCall("getExpenseItems", { employee: "" }),
     apiCall("getVerifiedDates", {}),
-    apiCall("getAllMessages", {})
+    apiCall("getAllMessages", {}),
+    apiCall("getSubmittedDates", {})
   ])
   .then(function(results) {
 
@@ -2312,10 +2324,10 @@ function login() {
       .classList.remove("hidden");
 
 
-    document
+       document
       .getElementById("welcome")
       .textContent =
-      `Welcome, ${currentUser.name}`;
+      currentUser.role === "Owner" ? "" : `Welcome, ${currentUser.name}`;
 
 
     if (currentUser.role === "Owner") {
@@ -2372,6 +2384,9 @@ function login() {
 
     if (Array.isArray(results[4])) {
       allMessages = results[4];
+    }
+    if (Array.isArray(results[5])) {
+      submittedDates = results[5];
     }
 
     renderAll();
@@ -2560,7 +2575,8 @@ function loadData() {
     apiCall("getCashHistory", { employee: "" }),
     apiCall("getExpenseItems", { employee: "" }),
     apiCall("getVerifiedDates", {}),
-    apiCall("getAllMessages", {})
+    apiCall("getAllMessages", {}),
+    apiCall("getSubmittedDates", {})
   ])
   .then(function(results) {
 
@@ -2596,6 +2612,9 @@ function loadData() {
 
     if (Array.isArray(results[3])) {
       allMessages = results[3];
+    }
+    if (Array.isArray(results[4])) {
+      submittedDates = results[4];
     }
 
     renderAll();
@@ -2739,10 +2758,12 @@ function groupExpenseItems(rows) {
         <span>${money(balance)}</span>
       </div>
 
-      <div class="day-actions">
+       <div class="day-actions">
         ${verifiedDates.indexOf(expense.date) !== -1
           ? '<span class="verified-badge">Done ✓</span>'
-          : ""}
+          : submittedDates.indexOf(expense.date) !== -1
+            ? '<span class="pending-badge">Pending</span>'
+            : `<button class="primary" style="margin-top:0" onclick="submitDay('${expense.date}')">Submit</button>`}
         <button class="secondary" onclick="toggleDayChat('${chatId}', '${expense.date}')">Messages</button>
       </div>
 
@@ -3029,6 +3050,8 @@ function renderOwnerLedger() {
 
       const isVerified =
         verifiedDates.indexOf(tx.date) !== -1;
+      const isSubmitted =
+        submittedDates.indexOf(tx.date) !== -1;
 
       return `
         <div class="card">
@@ -3067,7 +3090,10 @@ function renderOwnerLedger() {
           <div class="day-actions">
             ${isVerified
               ? '<span class="verified-badge">Done ✓</span>'
-              : `<button class="secondary" onclick="markDayOk('${tx.date}')">OK</button>`}
+              : isSubmitted
+                ? `<span class="pending-badge">Pending</span>
+                   <button class="secondary" onclick="markDayOk('${tx.date}')">OK</button>`
+                : '<span class="pending-badge" style="background:#f3f4f6;color:#6b7280">Not submitted</span>'}
             <button class="secondary" onclick="toggleDayChat('${chatId}', '${tx.date}')">Ask a Question</button>
           </div>
 
@@ -3160,7 +3186,43 @@ function sendDayMessage(date, chatId) {
 
 }
 
+function submitDay(date) {
 
+  if (!confirm("Submit expenses for " + date + " to the Owner?")) {
+    return;
+  }
+
+  apiCall("submitDay", {
+    date: date,
+    submittedBy: currentUser.name
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+      alert((result && result.message) || "Could not submit.");
+      return;
+    }
+
+    return apiCall("getSubmittedDates", {}).then(function(dates) {
+
+      if (Array.isArray(dates)) {
+        submittedDates = dates;
+      }
+
+      renderExpenseHistory();
+      renderOwnerLedger();
+
+    });
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    alert("Could not reach server. Please try again.");
+
+  });
+
+}
 function markDayOk(date) {
 
   apiCall("markDayVerified", {
