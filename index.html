@@ -2763,7 +2763,7 @@ function groupExpenseItems(rows) {
       </div>
 
        <div class="day-actions">
-        ${verifiedDates.indexOf(expense.date) !== -1
+               ${(verifiedDates.indexOf(expense.date) !== -1 && submittedDates.indexOf(expense.date) !== -1)
           ? '<span class="verified-badge">Done ✓</span>'
           : submittedDates.indexOf(expense.date) !== -1
             ? '<span class="pending-badge">Pending</span>'
@@ -3052,8 +3052,9 @@ function renderOwnerLedger() {
       const chatId =
         "chat-" + tx.date.replace(/\//g, "-") + "-" + txIndex;
 
-      const isVerified =
-        verifiedDates.indexOf(tx.date) !== -1;
+           const isVerified =
+        verifiedDates.indexOf(tx.date) !== -1 &&
+        submittedDates.indexOf(tx.date) !== -1;
       const isSubmitted =
         submittedDates.indexOf(tx.date) !== -1;
 
