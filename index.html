@@ -1354,7 +1354,12 @@ textarea {
           placeholder="Enter amount"
         >
 
+        <label>Added By</label>
 
+        <input
+          id="cashAddedBy"
+          placeholder="Name of person adding cash"
+        >
         <label>Note</label>
 
         <textarea
@@ -2243,7 +2248,49 @@ function addEmployeeAccount() {
   });
 
 }
+// Removes an Employee or Owner login. Old records stay untouched.
+function removeUserAccount(username, role) {
 
+  const person =
+    users[username] ? users[username].name : username;
+
+  if (!confirm(
+    "Remove " + person + "? They will no longer be able to log in. " +
+    "Their old records and history will be kept."
+  )) {
+    return;
+  }
+
+  apiCall("removeUser", {
+    username: username,
+    expectedRole: role,
+    authUsername: currentUser.username,
+    authPin: currentUser.pin
+  })
+  .then(function(result) {
+
+    if (!result || !result.success) {
+      alert((result && result.message) || "Could not remove user.");
+      return;
+    }
+
+    alert(result.message);
+
+    if (role === "Owner") {
+      loadOwnerUsers();
+    }
+
+    return refreshUsersList();
+
+  })
+  .catch(function(err) {
+
+    console.error(err);
+    alert("Could not reach server. Please try again.");
+
+  });
+
+}
 // Fills the Users screen with every Owner and their PIN.
 function loadOwnerUsers() {
 
@@ -2276,6 +2323,9 @@ function loadOwnerUsers() {
           <div class="card">
             <strong>Owner ${index + 1} → ${escapeHtml(owner.name)}</strong>
             <p>PIN: <span class="money">${escapeHtml(owner.pin)}</span></p>
+                        ${owner.username === currentUser.username
+              ? ""
+              : `<button class="danger" style="margin-top:8px" onclick="removeUserAccount('${owner.username}', 'Owner')">Remove User</button>`}
           </div>
         `;
 
@@ -3169,7 +3219,10 @@ function renderOwnerLedger() {
               <span>Time</span>
               <span>${tx.time ? escapeHtml(tx.time) : "—"}</span>
             </div>
-
+            <div class="item-row">
+              <span>Added By</span>
+              <span>${escapeHtml(tx.addedBy || "—")}</span>
+            </div>
             <div class="total-row">
               <span>Cash Added</span>
               <span class="credit">+ ${money(tx.amount)}</span>
@@ -3984,6 +4037,7 @@ function renderEmployeesList() {
             Current Balance:
             <span class="money">${money(balance)}</span>
           </p>
+                    <button class="danger" style="margin-top:8px" onclick="removeUserAccount('${emp.username}', 'Employee')">Remove Employee</button>
         </div>
       `;
 
@@ -4040,6 +4094,7 @@ function renderOwnerCashHistory() {
             <span>${formatDate(cash.date)}</span>
             <span class="credit">+ ${money(cash.amount)}</span>
           </div>
+                  <div class="muted">Added by: ${escapeHtml(cash.addedBy || "—")}</div>
           <div class="muted">${escapeHtml(cash.note || "Cash Added")}</div>
         </div>
       `;
@@ -4065,7 +4120,13 @@ function renderOwnerCashHistory() {
 
   const note =
     document.getElementById("cashNote").value.trim();
+  const addedByName =
+    document.getElementById("cashAddedBy").value.trim();
 
+  if (!addedByName) {
+    alert("Please enter the Added By name.");
+    return;
+  }
 
   if (!date || amount <= 0) {
 
@@ -4086,8 +4147,8 @@ function renderOwnerCashHistory() {
   apiCall("addCash", {
     date: formatDateForStorage(date),
     employee: "Selvakumar",
-    amount: amount,
-    addedBy: currentUser.name,
+       amount: amount,
+    addedBy: addedByName,
     note: note || "Cash Added",
     time: currentTimeString()
   })
@@ -4112,7 +4173,7 @@ function renderOwnerCashHistory() {
     document.getElementById(
       "cashNote"
     ).value = "";
-
+    document.getElementById("cashAddedBy").value = "";
 
     return loadData().then(function() {
 
