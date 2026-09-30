@@ -671,7 +671,7 @@ textarea {
 
       <div class="tiles">
 
-        <div class="tile balance-tile">
+               <div class="tile balance-tile" style="cursor:pointer" onclick="showOwnerSection('ownerBalanceSection'); renderEmployeeBalance()">
           <span>💵</span>
           Check Balance
           <div id="ownerBalance" class="tile-amount">₹910</div>
@@ -740,7 +740,42 @@ textarea {
         </button>
       </div>
 
+      <!-- CHECK BALANCE (by employee) -->
 
+      <div id="ownerBalanceSection" class="section hidden">
+
+        <button
+          class="secondary back"
+          onclick="hideOwnerSections()"
+        >
+          ← Back
+        </button>
+
+        <h3>Check Balance</h3>
+
+        <label>Select Employee</label>
+        <select id="balanceEmployeeSelect" onchange="renderEmployeeBalance()"></select>
+
+        <div class="balance" style="margin-top:16px">
+          <small id="balanceEmployeeName"></small>
+          <div id="balanceEmployeeAmount" class="amount">₹0</div>
+        </div>
+
+        <div class="stats">
+
+          <div class="stat">
+            <small>Total Cash Received</small>
+            <strong id="balanceEmployeeCash">₹0</strong>
+          </div>
+
+          <div class="stat">
+            <small>Total Expenses</small>
+            <strong id="balanceEmployeeSpent">₹0</strong>
+          </div>
+
+        </div>
+
+      </div>
       <!-- EMPLOYEE NOTIFICATIONS -->
 
       <div id="ownerNotificationsSection" class="section hidden">
@@ -1073,7 +1108,16 @@ textarea {
     <!-- EMPLOYEE PAGE -->
 
     <div id="employeePage" class="hidden">
+      <div class="owner-topbar">
 
+        <div>
+          <div class="muted"><span id="empCurrentDate"></span></div>
+          <div class="muted"><span id="empCurrentDay"></span></div>
+        </div>
+
+        <div id="empClock" class="owner-clock"></div>
+
+      </div>
       <div class="balance">
 
         <small>
@@ -2039,7 +2083,49 @@ setInterval(function() {
 
 }, 30000);
 
+// Fills the Employee dashboard's Date / Day / Time, same format as Owner.
+function updateEmployeeTopbar() {
 
+  const dateEl =
+    document.getElementById("empCurrentDate");
+
+  const dayEl =
+    document.getElementById("empCurrentDay");
+
+  const clockEl =
+    document.getElementById("empClock");
+
+  if (!dateEl || !currentUser) {
+    return;
+  }
+
+  const now = new Date();
+
+  dateEl.textContent =
+    String(now.getDate()).padStart(2, "0") + "/" +
+    String(now.getMonth() + 1).padStart(2, "0") + "/" +
+    now.getFullYear();
+
+  dayEl.textContent =
+    now.toLocaleDateString("en-US", { weekday: "long" });
+
+  clockEl.textContent = currentTimeString();
+
+}
+
+
+// Keeps the Employee clock accurate while the dashboard stays open.
+setInterval(function() {
+
+  if (
+    currentUser &&
+    currentUser.role !== "Owner" &&
+    !document.getElementById("employeePage").classList.contains("hidden")
+  ) {
+    updateEmployeeTopbar();
+  }
+
+}, 30000);
 // Converts a "hh:mm AM/PM" string into minutes-since-midnight, for
 // sorting same-day transactions chronologically. Records saved before
 // this feature existed have no time value, so they sort first (0).
@@ -2840,7 +2926,7 @@ function currentBalance() {
 
 
 function renderAll() {
-
+  updateEmployeeTopbar();
   const balance =
     currentBalance();
 
@@ -4265,7 +4351,91 @@ setInterval(function() {
 
 }, 60000);
 
+// Fills the "Select Employee" list from the current users (so added or
+// removed employees appear automatically) and shows that employee's
+// balance. Uses only that employee's own cash and expense records.
+function renderEmployeeBalance() {
 
+  const select =
+    document.getElementById("balanceEmployeeSelect");
+
+  if (!select) {
+    return;
+  }
+
+  const previous =
+    select.value;
+
+  const employeeKeys =
+    Object.keys(users).filter(function(key) {
+      return users[key].role === "Employee";
+    });
+
+  select.innerHTML = "";
+
+  employeeKeys.forEach(function(key) {
+
+    const option =
+      document.createElement("option");
+
+    option.value = key;
+    option.textContent = users[key].name;
+
+    select.appendChild(option);
+
+  });
+
+  if (previous && employeeKeys.indexOf(previous) !== -1) {
+    select.value = previous;
+  }
+
+  if (!employeeKeys.length) {
+
+    document.getElementById("balanceEmployeeName").textContent = "No employees";
+    document.getElementById("balanceEmployeeAmount").textContent = money(0);
+    document.getElementById("balanceEmployeeCash").textContent = money(0);
+    document.getElementById("balanceEmployeeSpent").textContent = money(0);
+
+    return;
+
+  }
+
+  const person =
+    users[select.value].name.trim().toLowerCase();
+
+  const cash =
+    cashHistory
+      .filter(function(c) {
+        return String(c.employee || "").trim().toLowerCase() === person;
+      })
+      .reduce(function(sum, c) {
+        return sum + Number(c.amount || 0);
+      }, 0);
+
+  const spent =
+    expenses
+      .filter(function(e) {
+        return String(e.employee || "").trim().toLowerCase() === person;
+      })
+      .reduce(function(sum, e) {
+        return sum + e.items.reduce(function(s, item) {
+          return s + Number(item.rate || 0);
+        }, 0);
+      }, 0);
+
+  document.getElementById("balanceEmployeeName").textContent =
+    users[select.value].name + "'s Balance";
+
+  document.getElementById("balanceEmployeeAmount").textContent =
+    money(cash - spent);
+
+  document.getElementById("balanceEmployeeCash").textContent =
+    money(cash);
+
+  document.getElementById("balanceEmployeeSpent").textContent =
+    money(spent);
+
+}
 // Lists each employee (from the users list) with their current
 // balance. Single shared balance pool for now, shown per employee.
 function renderEmployeesList() {
