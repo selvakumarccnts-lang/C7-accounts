@@ -1318,17 +1318,16 @@ textarea {
         </div>
 
 
-        <button
+              <button
           class="primary"
-          onclick="downloadExpenseReport('employeeFromDate', 'employeeToDate')"
+          onclick="downloadTransactionsPDF('employeeFromDate', 'employeeToDate')"
         >
-          Download CSV
+          Download PDF
         </button>
 
         <p class="muted" style="text-align:center;margin-top:14px">
-          Downloads all expense items (with total) between the selected dates.
+          Downloads a statement of transactions for the selected dates.
         </p>
-
         <button
           class="danger"
           id="employeeDeleteBtn"
@@ -1703,7 +1702,46 @@ function refreshUsersList() {
 
 
 document.addEventListener("DOMContentLoaded", refreshUsersList);
+// ---- Remember login on this phone until the user logs out ----
 
+function saveSession(username, pin) {
+
+  try {
+    localStorage.setItem(
+      "c7Session",
+      JSON.stringify({ username: username, pin: pin })
+    );
+  } catch (e) {}
+
+}
+
+
+document.addEventListener("DOMContentLoaded", function() {
+
+  let saved = null;
+
+  try {
+    saved = JSON.parse(localStorage.getItem("c7Session") || "null");
+  } catch (e) {}
+
+  if (!saved || !saved.username || !saved.pin) {
+    return;
+  }
+
+  // Hide the login screen while we sign in quietly in the background.
+  document.getElementById("loginPage").classList.add("hidden");
+
+  login(saved.username, saved.pin).then(function() {
+
+    // If it did not work (offline, PIN changed, user removed),
+    // fall back to the normal login screen.
+    if (!currentUser) {
+      document.getElementById("loginPage").classList.remove("hidden");
+    }
+
+  });
+
+});
 
 let currentUser = null;
 
@@ -2240,6 +2278,7 @@ function changeMyPin(currentId, newId, confirmId) {
 
     alert("PIN changed successfully.");
     currentUser.pin = newPin;
+        saveSession(currentUser.username, newPin);
     document.getElementById(currentId).value = "";
     document.getElementById(newId).value = "";
     document.getElementById(confirmId).value = "";
@@ -2514,19 +2553,15 @@ function showRoleSelect() {
 }
 
 
-function login() {
+function login(savedUsername, savedPassword) {
 
-  const username =
-    document
-      .getElementById("username")
-      .value
-      .trim()
-      .toLowerCase();
+   const username =
+    savedUsername ||
+    document.getElementById("username").value.trim().toLowerCase();
 
   const password =
-    document
-      .getElementById("password")
-      .value;
+    savedPassword ||
+    document.getElementById("password").value;
 
   const loginBtn =
     document.getElementById("loginBtn");
@@ -2547,7 +2582,7 @@ function login() {
   // are fired together instead of waiting on login to finish first.
   // This roughly halves the typical wait compared to doing them
   // one after another.
-  Promise.all([
+    return Promise.all([
     apiCall("login", {
       username: username,
       password: password
@@ -2566,9 +2601,13 @@ function login() {
 
     if (!result || !result.success) {
 
-      loginMsg.textContent =
+           loginMsg.textContent =
         (result && result.message) ||
         "Invalid username or password";
+
+      if (savedUsername && result && result.message === "Invalid username or password") {
+        try { localStorage.removeItem("c7Session"); } catch (e) {}
+      }
 
       return;
 
@@ -2580,7 +2619,7 @@ function login() {
       role: result.role,
       pin: password
     };
-
+    saveSession(currentUser.username, password);
 
     document
       .getElementById("loginPage")
@@ -2679,7 +2718,7 @@ function login() {
 
 }
   function logout() {
-
+  try { localStorage.removeItem("c7Session"); } catch (e) {}
   currentUser = null;
 
   document
