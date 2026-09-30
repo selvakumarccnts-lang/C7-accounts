@@ -908,7 +908,36 @@ textarea {
         </button>
 
         <h3>Transaction History</h3>
+        <div style="margin-bottom:14px">
 
+          <label>View</label>
+          <select id="ownerTxFilterMode" onchange="toggleTxFilterMode('ownerTx')">
+            <option value="all">All</option>
+            <option value="date">Datewise</option>
+            <option value="month">Monthwise</option>
+          </select>
+
+          <div id="ownerTxDateBox" class="form-row hidden">
+            <div>
+              <label>From Date</label>
+              <input id="ownerTxFrom" type="date">
+            </div>
+            <div>
+              <label>To Date</label>
+              <input id="ownerTxTo" type="date">
+            </div>
+          </div>
+
+          <div id="ownerTxMonthBox" class="hidden">
+            <label>Month</label>
+            <input id="ownerTxMonth" type="month">
+          </div>
+
+          <button class="primary" style="margin-top:12px" onclick="applyTxFilter('ownerTx')">
+            Show
+          </button>
+
+        </div>
         <div id="ownerLedger"></div>
 
       </div>
@@ -1474,7 +1503,36 @@ textarea {
         </button>
 
         <h3>Expense History</h3>
+        <div style="margin-bottom:14px">
 
+          <label>View</label>
+          <select id="empTxFilterMode" onchange="toggleTxFilterMode('empTx')">
+            <option value="all">All</option>
+            <option value="date">Datewise</option>
+            <option value="month">Monthwise</option>
+          </select>
+
+          <div id="empTxDateBox" class="form-row hidden">
+            <div>
+              <label>From Date</label>
+              <input id="empTxFrom" type="date">
+            </div>
+            <div>
+              <label>To Date</label>
+              <input id="empTxTo" type="date">
+            </div>
+          </div>
+
+          <div id="empTxMonthBox" class="hidden">
+            <label>Month</label>
+            <input id="empTxMonth" type="month">
+          </div>
+
+          <button class="primary" style="margin-top:12px" onclick="applyTxFilter('empTx')">
+            Show
+          </button>
+
+        </div>
         <div id="employeeHistory"></div>
 
       </div>
@@ -2991,31 +3049,154 @@ function groupExpenseItems(rows) {
   `;
 
 }
-  function renderExpenseHistory() {
+  // ---- Datewise / Monthwise picker (shared by Owner and Employee) ----
 
-  const box =
-    document.getElementById(
-      "employeeHistory"
-    );
+// Shows/hides the From-To boxes or the Month box for the chosen mode.
+function toggleTxFilterMode(prefix) {
+
+  const mode =
+    document.getElementById(prefix + "FilterMode").value;
+
+  document
+    .getElementById(prefix + "DateBox")
+    .classList.toggle("hidden", mode !== "date");
+
+  document
+    .getElementById(prefix + "MonthBox")
+    .classList.toggle("hidden", mode !== "month");
+
+  if (mode === "all") {
+    applyTxFilter(prefix);
+  }
+
+}
 
 
-  if (!expenses.length) {
+// Reads the picker and returns { start, end } dates, or null when the
+// picker is on "All" (or not fully filled in) meaning "show everything".
+function getTxFilter(prefix) {
 
-    box.innerHTML =
-      '<div class="empty">No expense records found</div>';
+  const modeEl =
+    document.getElementById(prefix + "FilterMode");
 
-    return;
+  if (!modeEl) {
+    return null;
+  }
+
+  if (modeEl.value === "date") {
+
+    const from =
+      document.getElementById(prefix + "From").value;
+
+    const to =
+      document.getElementById(prefix + "To").value;
+
+    if (!from || !to) {
+      return null;
+    }
+
+    return {
+      start: new Date(from + "T00:00:00"),
+      end: new Date(to + "T23:59:59")
+    };
 
   }
 
+  if (modeEl.value === "month") {
+
+    const month =
+      document.getElementById(prefix + "Month").value;
+
+    if (!month) {
+      return null;
+    }
+
+    const parts = month.split("-");
+    const year = Number(parts[0]);
+    const mon = Number(parts[1]);
+
+    return {
+      start: new Date(year, mon - 1, 1),
+      end: new Date(year, mon, 0, 23, 59, 59)
+    };
+
+  }
+
+  return null;
+
+}
+
+
+// True if a "DD/MM/YYYY" date is inside the filter (or there is no filter).
+function txInFilter(dateStr, filter) {
+
+  if (!filter) {
+    return true;
+  }
+
+  const d = parseDMYDate(dateStr);
+
+  return !!d && d >= filter.start && d <= filter.end;
+
+}
+
+
+// Called by the "Show" button: checks the picker, then redraws the list.
+function applyTxFilter(prefix) {
+
+  const mode =
+    document.getElementById(prefix + "FilterMode").value;
+
+  if (mode === "date") {
+
+    const from =
+      document.getElementById(prefix + "From").value;
+
+    const to =
+      document.getElementById(prefix + "To").value;
+
+    if (!from || !to) {
+      alert("Please select both From Date and To Date.");
+      return;
+    }
+
+    if (from > to) {
+      alert("From Date cannot be after To Date.");
+      return;
+    }
+
+  }
+
+  if (
+    mode === "month" &&
+    !document.getElementById(prefix + "Month").value
+  ) {
+    alert("Please select a month.");
+    return;
+  }
+
+  if (prefix === "ownerTx") {
+    renderOwnerLedger();
+  } else {
+    renderExpenseHistory();
+  }
+
+}
+ function renderExpenseHistory() {
+
+  const box =
+    document.getElementById("employeeHistory");
+
+  const filter =
+    getTxFilter("empTx");
 
   let running =
     totalCash();
 
+  const items = [];
 
-  box.innerHTML = "";
-
-
+  // Balances are always worked out from the full history, so the numbers
+  // on each box are the same whether or not a filter is applied.
   expenses.forEach((expense, expenseIndex) => {
 
     const total =
@@ -3025,31 +3206,100 @@ function groupExpenseItems(rows) {
         0
       );
 
-
     const cashBefore =
       running;
-
 
     const balance =
       cashBefore - total;
 
-
     running =
       balance;
 
+    if (txInFilter(expense.date, filter)) {
 
-    box.innerHTML +=
-      expenseCard(
-        expense,
-        cashBefore,
-        balance,
-        expenseIndex
-      );
+      const d = parseDMYDate(expense.date);
+
+      items.push({
+        sortKey:
+          (d ? d.getTime() : 0) + timeToMinutes(expense.time) * 60000,
+        html:
+          expenseCard(expense, cashBefore, balance, expenseIndex)
+      });
+
+    }
 
   });
 
-}
+  // Only when a Datewise/Monthwise filter is on: bring in the Cash Added
+  // boxes for that period and put everything in date/time order.
+  if (filter) {
 
+    cashHistory.forEach(cash => {
+
+      if (!txInFilter(cash.date, filter)) {
+        return;
+      }
+
+      const d = parseDMYDate(cash.date);
+
+      items.push({
+        sortKey:
+          (d ? d.getTime() : 0) + timeToMinutes(cash.time) * 60000,
+        html: `
+          <div class="card cash-card">
+
+            <div class="card-head">
+
+              <strong>
+                ${formatDate(cash.date)}
+              </strong>
+
+              <span class="money">
+                ${money(cash.amount)}
+              </span>
+
+            </div>
+
+            <div class="muted">
+              Added by:
+              ${escapeHtml(cash.addedBy)}
+            </div>
+
+            <div>
+              ${escapeHtml(
+                cash.note || "Cash Added"
+              )}
+            </div>
+
+          </div>
+        `
+      });
+
+    });
+
+    items.sort(function(a, b) {
+      return a.sortKey - b.sortKey;
+    });
+
+  }
+
+  if (!items.length) {
+
+    box.innerHTML =
+      filter
+        ? '<div class="empty">No transactions found in this period</div>'
+        : '<div class="empty">No expense records found</div>';
+
+    return;
+
+  }
+
+  box.innerHTML =
+    items.map(function(item) {
+      return item.html;
+    }).join("");
+
+}
 
 function renderCashHistory() {
 
@@ -3188,8 +3438,13 @@ function renderOwnerLedger() {
   const box =
     document.getElementById("ownerLedger");
 
+   const ownerFilter =
+    getTxFilter("ownerTx");
+
   const txns =
-    buildTransactionTimeline();
+    buildTransactionTimeline().filter(function(tx) {
+      return txInFilter(tx.date, ownerFilter);
+    });
 
   if (!txns.length) {
 
